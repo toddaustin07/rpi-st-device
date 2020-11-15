@@ -3,24 +3,24 @@
 This repository holds everything needed to set up a Raspberry Pi to act as a SmartThings direct connected device.
 
 Pre-requisites:
-	Raspberry Pi 3 or later running Raspian O/S (so far tested on Jessie)
-  	- assumed to include numerous capabilities including wifi, GNU C compiler (gcc), iw, wpa_cli, rfkill, GPicView, wlan0 device defined
+	- Raspberry Pi 3 or later running Raspian O/S (so far tested on Jessie)
+  - assumed to include numerous capabilities including wifi, GNU C compiler (gcc), iw, wpa_cli, rfkill, GPicView, wlan0 device defined
   
-  Github account
+  - Github account
   
-  SmartThings Device SDK for Direct Connect Devices: https://github.com/SmartThingsCommunity/st-device-sdk-c
+  - SmartThings Device SDK for Direct Connect Devices: https://github.com/SmartThingsCommunity/st-device-sdk-c
     - cloned to RPI
     - Note that only the 'core' SDK noted above is needed; do NOT clone the 'reference' SDK - it is not needed
-    * I am trying to remove the SDK from the requirements here; instead of having to compile the SDK core code yourself, my aim is to provide a pre-compiled shared object file and header files that you only have to link to your device code.
+    - * I am trying to remove the SDK from the requirements here; instead of having to compile the SDK core code yourself, my aim is to provide a pre-compiled shared object file and header files that you only have to link to your device code.
     
     
-  Python 3.5 or later (required for SDK tools keygen and qrgen)
+  - Python 3.5 or later (required for SDK tools keygen and qrgen)
   
-  Wireless router / access point configured with WPA or WPA2 authentication (a bug in the SDK currently prevents OPEN authorization (no password) from working)
+  - Wireless router / access point configured with WPA or WPA2 authentication (a bug in the SDK currently prevents OPEN authorization (no password) from working)
 
-  hostapd and dnsmasq modules for Debian
+  - hostapd and dnsmasq modules for Debian
 
-  Samsung/SmartThings developer account for developer workspace: https://smartthings.developer.samsung.com/workspace/
+  - Samsung/SmartThings developer account for developer workspace: https://smartthings.developer.samsung.com/workspace/
   
   
 Useful reading:
