@@ -4,14 +4,18 @@ This repository holds everything needed to set up a Raspberry Pi to act as a Sma
 
 Pre-requisites
 --------------
-
+## Hardware
 - Raspberry Pi 3 or later running Raspian O/S (so far tested on Jessie)
 	- assumed to include the standard capabilities including working wlan0 device, GNU C compiler (gcc), iw, wpa_cli, rfkill, GPicView
 	
+
+## Accounts
 - Samsung SmartThings developer account for developer workspace: https://smartthings.developer.samsung.com/workspace/	
 	
 - Github account (if you're reading this I guess you already have one!)
   
+  
+## Software
 - SmartThings Device SDK for Direct Connect Devices: https://github.com/SmartThingsCommunity/st-device-sdk-c
   - cloned to RPI
   - Note that only the 'core' SDK noted above is needed; do NOT clone the 'reference' SDK - it is not needed
