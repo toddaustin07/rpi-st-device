@@ -20,7 +20,8 @@ Pre-requisites
 - Python 3.5 or later (required for SDK tools: keygen and qrgen)
 	- additional packages:  pynacl, qrcode, pillow (via pip installer)
   
-- hostapd and dnsmasq modules for Debian (via apt-get)	
+- hostapd and dnsmasq modules for Debian (via apt install)	
+	- Optional:  netfilter-persistent, iptables-persistent (via apt install) required for enabling passthru for the WAP
 	
 - Wireless router / access point configured with WPA or WPA2 authentication 
 	- There is a bug in the SDK currently that causes a crash if you have OPEN authorization (I've reported it and hopefully it will be fixed)
