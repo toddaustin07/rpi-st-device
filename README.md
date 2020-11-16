@@ -15,7 +15,7 @@ Pre-requisites
 - SmartThings Device SDK for Direct Connect Devices: https://github.com/SmartThingsCommunity/st-device-sdk-c
   - cloned to RPI
   - Note that only the 'core' SDK noted above is needed; do NOT clone the 'reference' SDK - it is not needed
-  - *I am trying to remove the SDK from the requirements here; instead of having to compile the SDK core code yourself, my aim is to provide a pre-compiled shared object file and header files that you only have to link to your device code.*
+  - *I am trying to remove the entire SDK cloning from the requirements here; instead of having to compile the SDK core code yourself, my thought is to provide a pre-compiled shared object file and header files that you only have to link to your device code.*
     
 - Python 3.5 or later (required for SDK tools: keygen and qrgen)
 	- additional packages:  pynacl, qrcode, pillow (via pip installer)
