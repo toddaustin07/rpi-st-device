@@ -41,7 +41,7 @@ Useful reading
 
 Work in progress
 ----------------
-- Eliminate or make optional the ST SDK clone and compile step
+- Finalize wifi module; provide options for wifi management
 - Provide a library of additional functions that can be used by the device app, such as RPI initialization and device status console window
-- Provide a SDK API wrapper for devices written in Python (currently only C language is supported)
+- Create an SDK API wrapper for devices written in Python (currently only C language is supported)
   

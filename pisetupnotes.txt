@@ -56,7 +56,7 @@ macaddr_acl=0
 auth_algs=1
 ignore_broadcast_ssid=0
 wpa=3
-wpa_passphrase=1111122222
+wpa_passphrase=xxxxxxxxxx
 wpa_key_mgmt=WPA-PSK
 wpa_pairwise=TKIP
 wpa_pairwise=CCMP
@@ -82,7 +82,7 @@ network={
 
 network={
 	ssid="TestAccessPoint"
-	psk="pinkfloyd"
+	psk="xxxxxxxx"
 	key_mgmt=WPA-PSK
 }
 
