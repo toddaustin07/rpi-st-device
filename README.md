@@ -5,7 +5,7 @@ This repository holds everything needed to set up a Raspberry Pi to act as a Sma
 Pre-requisites
 --------------
 ## Hardware
-- Raspberry Pi 3 or later running Raspian O/S (so far tested on Jessie)
+- Raspberry Pi 3 or later running Raspberry Pi O/S 
 	- assumed to include the standard capabilities including working wlan0 device, GNU C compiler (gcc), iw, wpa_cli, rfkill, GPicView
 	
 
@@ -27,8 +27,6 @@ Pre-requisites
 - hostapd and dnsmasq modules for Debian (via apt install)	
 	- Optional:  netfilter-persistent, iptables-persistent (via apt install) required for enabling passthru for the WAP
 	
-- Wireless router / access point configured with WPA or WPA2 authentication 
-	- There is a bug in the SDK currently that causes a crash if you have OPEN authorization (I've reported it and hopefully it will be fixed)
 
   
 Useful reading
@@ -42,6 +40,7 @@ Useful reading
 Work in progress
 ----------------
 - Finalize wifi module; provide options for wifi management
+- Documentation
 - Provide a library of additional functions that can be used by the device app, such as RPI initialization and device status console window
 - Create an SDK API wrapper for devices written in Python (currently only C language is supported)
   
