@@ -6,7 +6,7 @@ Pre-requisites
 --------------
 ## Hardware
 - Raspberry Pi 3 or later running Raspberry Pi O/S 
-	- assumed to include the standard capabilities including working wlan0 device, GNU C compiler (gcc), iw, wpa_cli, rfkill, GPicView
+	- assumed to include the standard capabilities including working wireless device with AP capability
 	
 
 ## Accounts
@@ -24,8 +24,9 @@ Pre-requisites
 - Python 3.5 or later (required for SDK tools: keygen and qrgen)
 	- additional packages:  pynacl, qrcode, pillow (via pip installer)
   
-- hostapd and dnsmasq modules for Debian (via apt install)	
-	- Optional:  netfilter-persistent, iptables-persistent (via apt install) required for enabling passthru for the WAP
+- RPI Sametime Device enabling package (this repository)
+
+- hostapd and dnsmasq service modules for Debian (via apt install)	
 	
 
   
@@ -35,12 +36,11 @@ Useful reading
 - How to build Direct Connect Devices on ST Community:  https://community.smartthings.com/t/how-to-build-direct-connected-devices/204055
   
   Note that any reference in the above documentation to toolchains and MCU boards can be ignored; instead we will be using a Raspberry Pi to be the device.
-  
+- How to Configure your Raspberry Pi for SmartThings Direct Connect (in this repository)
 
 Work in progress
 ----------------
-- Finalize wifi module; provide options for wifi management
-- Documentation
-- Provide a library of additional functions that can be used by the device app, such as RPI initialization and device status console window
+- Finalize wifi module; beta test volunteers
+- Documentation and automation of configuration process
 - Create an SDK API wrapper for devices written in Python (currently only C language is supported)
   
