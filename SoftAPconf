@@ -1,0 +1,595 @@
+#!/bin/bash
+
+# This script sets up configuration for a SoftAP using hostapd and dnsmasq
+#
+# Required arguments:
+#	#1 AP device name (e.g. wlap0, wlmyap, wlpiap, etc.)
+#	#2 Static IP Address for AP device
+#	#3 IP address range (comma separated)
+#	#4 Wifi channel number for AP device (1-11)
+#	#5 2-character country code
+#
+
+
+dev=$1
+addr=$2
+adrange=$3
+ch=$4
+cc=$5
+
+ipOK="no"
+ip1=0
+ip2=0
+ip3=0
+ip4=0
+static_ip1=0
+static_ip2=0
+static_ip3=0
+static_ip4=0
+beg_ip3=0
+beg_ip4=0
+def_dev="wlap0"
+def_addr="192.168.2.1"
+def_adrange="192.168.2.2,192.168.2.10"
+def_ch="1"
+def_cc="US"
+
+ipcount=0
+declare -a dhcp_array_dev
+declare -a dhcp_array_ip
+
+# Test config filenames
+dhcpcd=./sample.conf
+hostapd=./tsthp.conf
+dnsmasq=./dns.conf
+
+disp_sep() {
+ local v=""
+ str=$1
+ num=$2
+ v=$(printf "%-${num}s" "$str")
+ echo "${v// /"$str"}"
+}
+
+splitip() {
+ local array="" 
+ ipstr=$1
+ IFS='.'
+ read -a array <<< "$ipstr"
+ ip1="${array[0]}"
+ ip2="${array[1]}"
+ ip3="${array[2]}"
+ ip4="${array[3]}"
+ if [ -z "$ip1" ]; then ip1=-1; fi
+ if [ -z "$ip2" ]; then ip2=-1; fi
+ if [ -z "$ip3" ]; then ip3=-1; fi
+ if [ -z "$ip4" ]; then ip4=-1; fi
+}
+
+checkip() {
+
+ inp=$1
+ splitip "$inp"
+ ipOK="no"
+ 
+ if [[ ip1 -gt 0 && ip1 -le 255 ]]
+  then
+   if [[ ip2 -gt 0 && ip2 -le 255 ]]
+    then
+     if [[ ip3 -ge 0 && ip3 -le 255 ]]
+      then
+       if [[ ip4 -ge 0 && ip4 -le 255 ]]
+        then
+         ipOK="yes"
+       fi
+     fi
+   fi
+ fi
+ 
+}
+
+getdhcp() {
+
+ local i=0
+ local ai=0
+ local fflag=0
+ local count=0
+ local lines=""
+ lnum=0
+ ltxt=""
+
+ ipcount=0
+ count=$(grep -c "interface" "$dhcpcd")
+ if [ $count -gt 0 ]
+  then
+   lines=$(grep -n "interface" "$dhcpcd" | cut -f1 -d:)
+   readarray -t lnarray <<< "$lines"
+
+   while [[ $i -lt $count ]]
+    do
+     lnum="${lnarray[i]}"
+     ltxt=$(sed -n "$lnum"p "$dhcpcd")
+     if [[ "$ltxt" != \#* ]]
+      then
+       IFS=' '
+       read -a dvarray <<< "$ltxt"
+       dhcp_array_dev[ai]="${dvarray[1]}"
+       nxtline=$((lnum+1))
+       ltxt=$(sed -n "$nxtline"p "$dhcpcd")
+       IFS='='
+       read -a rdarray <<< "$ltxt"
+       if [[ "${rdarray[0]}" == *"static ip_address"* ]]
+        then
+         dhcp_array_ip[ai]="${rdarray[1]}"
+         ai=$((ai+1))
+       fi
+     fi
+     i=$((i+1))
+    done
+    ipcount=$ai
+    #echo "DONE; Count=$ipcount"
+    #echo "dev array: ${dhcp_array_dev[@]}"
+    #echo "ip array : ${dhcp_array_ip[@]}"
+  else
+   #echo "None found"
+ fi
+}
+
+############################ MAIN ##########################
+
+[ $UID -eq 0 ] || { echo "This script must be run as root."; exit 1;}
+
+
+disp_sep "=" 60
+echo 
+echo -e "\e[1m\e[93m                  >>> WARNING!!! <<<"
+echo -e "\e[0mThis script will prepare your system for SoftAP capability"
+echo -e "\thostapd and dnsmasq will be installed/updated"
+echo -e "\tThe following files will be modified*:"
+echo -e "\t\t/etc/dhcpcd.conf"
+echo -e "\t\t/etc/hostapd/hostapd.conf"
+echo -e "\t\t/etc/dnsmasq.conf"
+echo 
+echo -e "* Originals will be saved with 'ORIG' appended to the filename"
+echo
+echo -e "\e[33m>> Press \e[1my\e[21m to continue or \e[1mq\e[21m to quit\e[39m"
+disp_sep "=" 60
+
+keyin=""
+while [[ "$keyin" != "q" && "$keyin" != "y" ]]
+do
+ read -rsn1 keyin
+done
+
+if [ "$keyin" == "q" ]; then
+ exit 0
+fi
+
+echo 
+echo -e "\e[0mInstalling/updating hostapd...\e[0m"
+echo
+#apt install hostapd
+echo
+echo -e "\e[0mInstalling/updating dnsmasq...\e[0m"
+echo
+#apt install dnsmasq
+echo
+echo -e "Software installs \e[1mCOMPLETE\e[0m"
+
+getinput="y"
+while [ "$getinput" == "y" ]
+ do
+
+# initialze defaults
+
+  cc="$def_cc"
+  dev="$def_dev"
+  addr="$def_addr"
+  adrange="$def_adrange"
+  ch="$def_ch"
+
+  # Read current dhcpcd.conf to get defined devices & ip addresses
+
+  disp_sep "-" 60
+
+  instr=""
+  echo 
+  echo -e "\e[33mPlease provide the following configuration details...\e[0m"
+  echo
+  echo -e "   (Press ENTER to accept the [\e[96mdefaults\e[0m])"
+  echo
+
+  inpOK="no"
+  while [ "$inpOK" == "no" ]
+   do
+    dev="$def_dev"
+    echo -en "\t\e[0mName for the AP device [\e[96m$dev\e[0m]: \e[96m"
+    read instr
+
+    if [ "$instr" ]; then dev="$instr"; fi
+
+    if [ ${#dev} -gt 14 ]
+     then
+      echo -e "\t\e[91m** Device name too long; try again"
+     else
+      if [ ${dev:0:1} != " " ]
+       then
+        if [ ${#dev} -lt 2 ]
+         then
+          echo -e "\t\e[91m** Device name too short; try again"
+         else
+          inpOK="yes"
+        fi
+       else
+        dev="$def_dev"
+        inpOK="yes"
+      fi
+    fi
+   done
+
+
+  ipOK="no"
+  while [ "$ipOK" == "no" ]
+   do
+    getdhcp
+    echo -en "\t\e[0mStatic IP address of the AP [\e[96m$addr\e[0m]: \e[96m"
+    read instr
+    if [ "$instr" ]; then addr="$instr"; fi
+
+    checkip "$addr"
+    if [ "$ipOK" == "no" ]
+     then
+      echo -e "\t\e[91m** INVALID IP ADDRESS; TRY AGAIN"
+      addr="$def_addr"
+
+     else
+      # check for possible duplicates from dhcpcd.conf
+      if [ $ipcount -gt 0 ]
+       then
+        found=-1
+        i=0
+        for saddr in "${dhcp_array_ip[@]}"
+         do
+          if [ "$addr" == "$saddr" ]; then found=$i; fi
+          i=$((i+1))
+         done
+        if [ $found -ge 0 ]
+         then
+          if [ "$dev" != "${dhcp_array_dev[$found]}" ]
+           then
+            echo -e "\t\e[91m** IP already used in dhcpcd.conf by: \e[1m${dhcp_array_dev[$found]}\e[21m"
+            addr="$def_addr"
+            ipOK="no"
+          fi
+        fi
+      fi
+    fi
+   done
+
+  static_ip1=$ip1
+  static_ip2=$ip2
+  static_ip3=$ip3
+  static_ip4=$ip4
+
+  nextip=$((static_ip4+1))
+  begrange="$ip1.$ip2.$ip3.$nextip"
+
+
+  echo -e "\t\e[0mIP address range..."
+  #IFS=','
+  #read -a range <<< "$adrange"
+  #begrange="${range[0]}"
+  #endrange="${range[1]}"
+
+  nextip=$((static_ip4+1))
+  begrange="$ip1.$ip2.$ip3.$nextip"
+  nextip=$((static_ip4+11))
+  endrange="$ip1.$ip2.$ip3.$nextip"
+  def_begrange="$begrange"
+  def_endrange="$endrange"
+
+  ipOK="no"
+  while [ "$ipOK" == "no" ]
+   do
+    echo -en "\t\e[0m  Beginning address [\e[96m$begrange\e[0m]: \e[96m"
+    read instr
+    if [ "$instr" ]; then begrange="$instr"; fi
+
+    consist="n"
+    checkip "$begrange"
+    if [ "$ipOK" == "yes" ]
+     then
+      ipOK="no"
+      if [ $ip1 -eq $static_ip1 ]
+       then
+        if [ $ip2 -eq $static_ip2 ]
+         then
+          if [ $ip3 -eq $static_ip3 ]
+           then
+            if [ $ip4 -gt $static_ip4 ]
+             then
+              ipOK="yes"
+              consist="yes"
+              beg_ip3=$ip3
+              beg_ip4=$ip4
+             else
+              echo -e "\t\e[91m** Fourth section not higher than static IP address"
+            fi
+           else
+            echo -e "\t\e[91m** Third section doesn't match static IP address"
+          fi
+         else
+          echo -e "\t\e[91m** Second section doesn't match static IP address"
+        fi
+       else
+        echo -e "\t\e[91m** First section doesn't match static IP address"
+      fi
+     else
+      echo -e "\t** INVALID IP ADDRESS; TRY AGAIN"
+    fi
+
+    if [ "$consist" == "no" ]
+     then
+      echo -e "\t\e[91m** Not consistent with your static IP address"
+    fi
+
+    if [ "$ipOK" == "no" ]; then begrange="$def_begrange"; fi
+
+   done
+
+  nextip=$((ip4+10))
+  endrange="$ip1.$ip2.$ip3.$nextip"
+  def_endrange="$endrange"
+
+  ipOK="no"
+  while [ "$ipOK" == "no" ]
+   do
+    echo -en "\t\e[0m    Ending address [\e[96m$endrange\e[0m]: \e[96m"
+    read instr
+    if [ "$instr" ]; then endrange="$instr"; fi
+
+    consist="no"
+    checkip "$endrange"
+    if [ "$ipOK" == "yes" ]
+     then
+      ipOK="no"
+      if [ $ip3 -eq $beg_ip3 ]
+       then
+        if [ $ip4 -gt $beg_ip4 ]
+         then
+          consist="yes"
+          ipOK="yes"
+         else
+          echo -e "\t\e[91m** Invalid IP range"
+        fi
+       else
+        echo -e "\t\e[91m** Range not consistent with beginning IP address **"
+      fi
+     else
+      echo -e "\t\e[91m** INVALID IP ADDRESS; TRY AGAIN"
+    fi
+    if [ $ipOK == "no" ]; then endrange="$def_endrange"; fi
+   done 
+
+  inpOK="no"
+  while [ "$inpOK" == "no" ]
+   do
+    ch="$def_ch"
+    echo -en "\t\e[0mWifi channel to use [\e[96m$ch\e[0m]: \e[96m"
+    read instr
+    if [ "$instr" ]; then ch="$instr"; fi
+
+    if [[ $ch -gt 0 && $ch -le 14 ]]
+     then
+      inpOK="yes"
+     else
+      echo -e "\t\e[91m** INVALID CHANNEL NUMBER; TRY AGAIN"
+    fi
+   done
+
+  inpOK="no"
+  while [ "$inpOK" == "no" ]
+   do
+    cc="$def_cc"
+    echo -en "\t\e[0mCountry code [\e[96m$cc\e[0m]: \e[96m"
+    read instr
+    if [ "$instr" ]; then cc="${instr^^}"; fi
+
+    if [ ${#cc} -eq 2 ]
+     then
+      if [[ "$cc" =~ [A-Z] ]]
+       then
+        inpOK="yes"
+       else
+        echo -e "\t\e[91m** Must only contain letters" 
+      fi
+     else
+      echo -e "\t\e[91m** Invalid country code"
+    fi
+   done
+
+  echo -e "\n\e[39m\e[1mConfirm your selections:\e[0m"
+  echo -e "\t Device name: \e[96m$dev\e[0m"
+  echo -e "\t   Static IP: \e[96m$addr\e[0m"
+  echo -e "\t    IP Range: \e[96m$begrange - $endrange\e[0m"
+  echo -e "\t     Channel: \e[96m$ch\e[0m"
+  echo -e "\t     Country: \e[96m$cc\e[0m"
+  echo
+  echo -en "\e[33m  >> Press \e[1my\e[21m to accept & continue, \e[1mn\e[21m to re-enter, or \e[1mq\e[21m to quit\e[0m"
+
+  keyin=""
+  while [[ "$keyin" != "y" && "$keyin" != "n"  && "$keyin" != "q" ]]
+   do
+    read -rsn1 keyin
+   done
+
+  if [[ "$keyin" == "y" || "$keyin" == "q" ]]; then getinput="n"; fi
+  echo
+ done
+ 
+
+# Done getting config input, now setup config files
+
+adrange="$begrange,$endrange"
+
+if [ "$keyin" == "y" ]
+ then
+
+  disp_sep "- " 30
+  echo
+  echo -e "\n\n\e[39mInstalling default config files..."
+  echo mv /etc/hostapd/hostapd.conf /etc/hostapd/hostapd.ORIGconf
+  echo cp ~/rpi-st-device/RPIhostapd.conf /etc/hostapd/hostapd.conf
+  echo mv /etc/dnsmasq.conf /etc/dnsmasq.ORIGconf
+  echo cp ~/rpi-st-device/RPIdnsmasq.conf /etc/dnsmasq.conf
+  echo -e "\e[1mCOMPLETE\e[0m"
+
+
+  echo
+  echo -e "Creating new wifi device..."
+  echo iw phy phy0 interface add $dev type __ap
+  if [ "$?" == 0 ]
+   then
+    echo -e "\n\e[1mCOMPLETE:\e[0m"
+    iw dev
+    echo
+   else
+    echo -e "\n\e[91Error encountered; exiting\e[0m"
+    exit -1 
+  fi
+
+  disp_sep "- " 30
+
+  echo -e "Updating /etc/dhcpcd.conf..."
+  echo cp /etc/dhcpcd.conf /etc/dhcpcd.ORIGconf
+
+  # Check to see if there is already an entry in the file for this dev
+  line=$(sed -n "/interface $dev/=" "$dhcpcd")
+
+  # If not, then append the new config lines
+  if [ -z "$line" ]
+   then
+
+    echo -e "\ninterface $dev" >> "$dhcpcd"
+    echo -e "\tstatic ip_address=$addr" >> "$dhcpcd"
+    echo -e "\tnohook wpa_supplicant" >> "$dhcpcd"
+    echo -e "\e[1mCOMPLETE\e[0m"
+
+   # Otherwise we need to update existing entry
+   # ...first find static ip_address line for the dev
+   else
+   
+    nextln=$((line+1))
+
+    result=$(grep -n "static ip_address" "$dhcpcd" | cut -f1 -d:)
+    readarray -t array <<< "$result"
+
+    i=0
+    l="${#array[@]}"
+    fflag=0
+
+    while [[ $i -lt $l && $fflag == 0 ]]
+     do
+      if [ "${array[i]}" == "$nextln" ]; then fflag=1; fi
+      i=$((i+1))
+     done
+
+    if [ $fflag -eq 1 ]
+     then
+      sed -i "$nextln""s/.*/\tstatic ip_address=$addr/" "$dhcpcd"
+      if [ $? == 0 ]
+       then
+
+         # check for duplicate IP addresses in dhcpcd.conf
+         count=$(grep -c "$addr" "$dhcpcd")
+
+         if [ $count -gt  1 ]
+          then
+           echo -e "\n\t\e[91m** You have duplicate IP addresses in dhcpcd.conf"
+           echo -e "\n\t\e[39m  Edit manually to resolve conflict"
+           echo -en "\t\e[33m   Press any key to start editor...\e[39m"
+           read -rsn1 keyin
+           nano "$dhcpcd"
+           echo
+          else
+           echo -e "\e[1mCOMPLETE\e[0m"
+         fi
+       else
+        errnum=$?
+        echo -e "\n\n\e[91m** Unexpected sed error# $errnum: Could not update $dhcpcd\e[39m\n"
+        exit 1
+      fi
+     else
+      echo -e "\n\n\t\e[93m** Missing contents in dhcpcd.conf; please edit manually **"
+      echo -e "\n\t\e[33mPress any key to start editor\e[39m"
+      read -rsn1 keyin
+      nano "$dhcpcd"
+    fi
+  fi
+
+
+  disp_sep "- " 30
+  echo -en "Updating /etc/hostapd/hostapd.conf..."
+  sed -i "/^country_code/c\\country_code=$cc" "$hostapd"
+  sed -i "/^interface/c\\interface=$dev" "$hostapd"
+  sed -i "/^channel/c\\channel=$ch" "$hostapd"
+  echo -e "\e[1mCOMPLETE\e[0m"
+
+  disp_sep "- " 30
+  echo -en "Updating /etc/dnsmasq.conf..."
+  sed -i "/^interface/c\\interface=$dev" "$dnsmasq"
+  sed -i "/^dhcp-range/c\\dhcp-range=$adrange,12h" "$dnsmasq"
+  sed -i "/^address/c\\address=/gw.wlan/$addr" "$dnsmasq"
+  echo -e "\e[1mCOMPLETE\e[0m"
+
+  disp_sep "-" 60
+  echo -e "\e[32m"
+  disp_sep "*" 26
+  echo -e "\e[21mCONFIGURATION IS COMPLETE!\e[0m"
+  disp_sep "*" 26
+  echo
+  echo -en "\n\e[33m>> Restart networking service now? (\e[1my/n\e[21m)"
+
+  keyin=""
+  while [[ "$keyin" != "y" && "$keyin" != "n" ]]
+   do
+    read -rsn1 keyin
+   done
+
+  if [ "$keyin" == "y" ]
+   then
+    echo
+    echo
+    echo -e "\e[39mRe-starting networking service..."
+    echo systemctl stop networking
+    echo systemctl start networking
+    echo -e "\e[1mCOMPLETE\e[0m"
+
+    disp_sep "-" 60
+    keyin=""
+    echo
+    echo -en "\e[33m>> Would you like to start hostapd now for testing? (\e[1my/n\e[21m)"
+    while [[ "$keyin" != "y" && "$keyin" != "n" ]]
+     do
+      read -rsn1 keyin
+     done
+
+    if [ "$keyin" == "y" ]
+     then
+      echo
+      echo
+      echo -e "\e[39m  * Manually starting hostapd; \e[1mCtrl-c\e[21m to exit out when done *"
+      echo
+      echo lxterminal -e /usr/sbin/hostapd /etc/hostapd/hostapd.conf &
+    fi
+
+   else
+    echo
+    echo -e "\nOK, reboot later to ensure $dev is operational"
+  fi
+
+fi
+
+echo
+echo -e "\n\e[1m*** DONE ***\e[0m\n"
+exit 0
