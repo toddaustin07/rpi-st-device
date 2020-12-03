@@ -2,14 +2,15 @@
 
 # This script sets up configuration for a SoftAP using hostapd and dnsmasq
 #
-# Required arguments:
+# Optional arguments (future use):
 #	#1 AP device name (e.g. wlap0, wlmyap, wlpiap, etc.)
 #	#2 Static IP Address for AP device
 #	#3 IP address range (comma separated)
 #	#4 Wifi channel number for AP device (1-11)
 #	#5 2-character country code
 #
-
+# Author: Todd A. Austin toddaustin07@yahoo.com
+# Date:   December 2, 2020
 
 dev=$1
 addr=$2
@@ -37,12 +38,16 @@ def_cc="US"
 ipcount=0
 declare -a dhcp_array_dev
 declare -a dhcp_array_ip
+declare -a dev_array
+devexistsflag=0
+wlan0chan=0
 
 # Test config filenames
 dhcpcd=./sample.conf
 hostapd=./tsthp.conf
 dnsmasq=./dns.conf
 
+# This function displays a string ($1) for ($2) # of repetitions
 disp_sep() {
  local v=""
  str=$1
@@ -51,6 +56,7 @@ disp_sep() {
  echo "${v// /"$str"}"
 }
 
+# This function splits an IP address ($1) into 4 global strings ip1-ip4
 splitip() {
  local array="" 
  ipstr=$1
@@ -66,6 +72,7 @@ splitip() {
  if [ -z "$ip4" ]; then ip4=-1; fi
 }
 
+# This function validates IP address ($1), sets global ipOK string to yes or no
 checkip() {
 
  inp=$1
@@ -85,18 +92,43 @@ checkip() {
      fi
    fi
  fi
- 
+
 }
 
+# This function retrieves the current wifi devices from iw dev into global dev_array
+getdev() {
+
+ local result=""
+ local iflag=-1
+ local index=0
+
+ result=$(iw dev | grep -e "Interface" | cut -f2 -d" ")
+ readarray -t dev_array <<< "$result"
+
+ for devitem in "${dev_array[@]}"
+  do
+   if [ "$devitem" == "wlan0" ]; then iflag=$index; fi
+   index=$((index+1))
+  done
+
+ if [ $iflag -ge 0 ]
+  then 
+   result=$(iw dev | grep -e "channel" | cut -f2 -d" ")
+   readarray -t chanarr <<< "$result"
+   wlan0chan="${chanarr[iflag]}"
+ fi
+}
+
+# This function retrieves the device/IP pairs from dhcpcd.conf; stores in global arrays dhcp_array_dev & dhcp_array_ip, and count in global  ipcount
 getdhcp() {
 
  local i=0
  local ai=0
- local fflag=0
  local count=0
  local lines=""
- lnum=0
- ltxt=""
+ local nxtline=""
+ local lnum=0
+ local ltxt=""
 
  ipcount=0
  count=$(grep -c "interface" "$dhcpcd")
@@ -130,17 +162,20 @@ getdhcp() {
     #echo "DONE; Count=$ipcount"
     #echo "dev array: ${dhcp_array_dev[@]}"
     #echo "ip array : ${dhcp_array_ip[@]}"
-  else
+  #else
    #echo "None found"
  fi
 }
 
-############################ MAIN ##########################
-
+######################################################################
+#
+#                            - MAIN -
+#
+######################################################################
 [ $UID -eq 0 ] || { echo "This script must be run as root."; exit 1;}
 
 
-disp_sep "=" 60
+disp_sep "=" 62
 echo 
 echo -e "\e[1m\e[93m                  >>> WARNING!!! <<<"
 echo -e "\e[0mThis script will prepare your system for SoftAP capability"
@@ -153,7 +188,7 @@ echo
 echo -e "* Originals will be saved with 'ORIG' appended to the filename"
 echo
 echo -e "\e[33m>> Press \e[1my\e[21m to continue or \e[1mq\e[21m to quit\e[39m"
-disp_sep "=" 60
+disp_sep "=" 62
 
 keyin=""
 while [[ "$keyin" != "q" && "$keyin" != "y" ]]
@@ -161,36 +196,44 @@ do
  read -rsn1 keyin
 done
 
+echo
 if [ "$keyin" == "q" ]; then
  exit 0
 fi
 
-echo 
-echo -e "\e[0mInstalling/updating hostapd...\e[0m"
+echo -e "\e[33mInstalling/updating hostapd...\e[0m"
 echo
-#apt install hostapd
+apt install hostapd
 echo
-echo -e "\e[0mInstalling/updating dnsmasq...\e[0m"
+echo -e "\e[33mInstalling/updating dnsmasq...\e[0m"
 echo
-#apt install dnsmasq
+apt install dnsmasq
 echo
-echo -e "Software installs \e[1mCOMPLETE\e[0m"
+echo -e "\e[33mSoftware installs \e[1mCOMPLETE\e[0m"
+echo
+echo -e "\e[33mDisabling auto-start for these new services...\e[0m"
+update-rc.d hostapd disable
+update-rc.d dnsmasq disable
+echo -e "\e[33m\e[1mCOMPLETE\e[0m" 
 
 getinput="y"
 while [ "$getinput" == "y" ]
  do
 
-# initialze defaults
+  # Get current system defined wifi devices from iw dev (into dev_array) + wlan0 channel number
+  getdev
+
+  # initialze defaults
 
   cc="$def_cc"
   dev="$def_dev"
   addr="$def_addr"
   adrange="$def_adrange"
+  if [ $wlan0chan -gt 0 ]; then def_ch=$wlan0chan; fi
   ch="$def_ch"
 
-  # Read current dhcpcd.conf to get defined devices & ip addresses
-
-  disp_sep "-" 60
+  echo
+  disp_sep "-" 62
 
   instr=""
   echo 
@@ -218,7 +261,24 @@ while [ "$getinput" == "y" ]
          then
           echo -e "\t\e[91m** Device name too short; try again"
          else
-          inpOK="yes"
+          # See if device already defined
+          found=0
+          for adev in "${dev_array[@]}"
+           do
+            if [ "$dev" == "$adev" ]; then found=1; fi
+           done
+          if [ $found -eq 1 ]
+           then
+            devexistsflag=1
+            echo -en "\t\e[93m** Warning-this device already exists.  Continue (y/n)?"
+            keyin=""
+            while [[ "$keyin" != "y" && "$keyin" != "n" ]]
+             do read -rsn1 keyin; done
+            echo
+            if [ "$keyin" == "y" ]; then inpOK="yes"; fi
+           else
+            inpOK="yes"
+          fi
         fi
        else
         dev="$def_dev"
@@ -226,7 +286,6 @@ while [ "$getinput" == "y" ]
       fi
     fi
    done
-
 
   ipOK="no"
   while [ "$ipOK" == "no" ]
@@ -380,8 +439,17 @@ while [ "$getinput" == "y" ]
     if [ "$instr" ]; then ch="$instr"; fi
 
     if [[ $ch -gt 0 && $ch -le 14 ]]
+     inpOK="yes"
      then
-      inpOK="yes"
+      if [[ $wlan0chan -ne 0 && $ch -ne $wlan0chan ]]
+       then
+        echo -en "\t\e[93m** Warning: channel not same as current wlan0.  Are you sure? (y/n)\e[0m"
+        keyin=""
+        while [[ "$keyin" != "y" && "$keyin" != "n" ]]
+         do read -rsn1 keyin; done
+        echo
+        if [ "$keyin" == "n" ]; then inpOK="no"; fi
+      fi
      else
       echo -e "\t\e[91m** INVALID CHANNEL NUMBER; TRY AGAIN"
     fi
@@ -408,7 +476,9 @@ while [ "$getinput" == "y" ]
     fi
    done
 
-  echo -e "\n\e[39m\e[1mConfirm your selections:\e[0m"
+  echo -e "\n\n\n\n\n\n\n\n\n\n\n\n\n"
+  disp_sep "v-" 32
+  echo -e "\n\e[33m\e[1mConfirm your selections:\e[0m\n"
   echo -e "\t Device name: \e[96m$dev\e[0m"
   echo -e "\t   Static IP: \e[96m$addr\e[0m"
   echo -e "\t    IP Range: \e[96m$begrange - $endrange\e[0m"
@@ -424,44 +494,58 @@ while [ "$getinput" == "y" ]
    done
 
   if [[ "$keyin" == "y" || "$keyin" == "q" ]]; then getinput="n"; fi
-  echo
+
  done
- 
+
 
 # Done getting config input, now setup config files
+
+echo
 
 adrange="$begrange,$endrange"
 
 if [ "$keyin" == "y" ]
  then
 
-  disp_sep "- " 30
-  echo
-  echo -e "\n\n\e[39mInstalling default config files..."
-  echo mv /etc/hostapd/hostapd.conf /etc/hostapd/hostapd.ORIGconf
-  echo cp ~/rpi-st-device/RPIhostapd.conf /etc/hostapd/hostapd.conf
-  echo mv /etc/dnsmasq.conf /etc/dnsmasq.ORIGconf
-  echo cp ~/rpi-st-device/RPIdnsmasq.conf /etc/dnsmasq.conf
-  echo -e "\e[1mCOMPLETE\e[0m"
+  disp_sep "- " 32
 
-
-  echo
-  echo -e "Creating new wifi device..."
-  echo iw phy phy0 interface add $dev type __ap
-  if [ "$?" == 0 ]
+  if [ $devexistsflag -eq 0 ]
    then
-    echo -e "\n\e[1mCOMPLETE:\e[0m"
-    iw dev
-    echo
+    echo -e "\n\e[33mCreating new wifi device $dev...\e[0m"
+    iw phy phy0 interface add $dev type __ap
+    if [ "$?" == 0 ]
+     then
+      echo -e "\n\e[33m\e[1mCOMPLETE:\e[0m"
+      iw dev
+      echo
+     else
+      echo -e "\n\e[91m   ^^Error encountered (maybe AP type device already exists)\e[0m"
+      echo -en "\n\t\e[33mContinue anyway? (\e[1my/n\e[0m)"
+      keyin=""
+      while [[ "$keyin" != "y" && "$keyin" != "n" ]]
+       do read -rsn1 keyin; done
+      if [ "$keyin" == "n" ]
+       then
+        echo -e "\n\n\e[0m** EXITING **\n"
+        exit -1
+      fi
+      echo
+    fi
    else
-    echo -e "\n\e[91Error encountered; exiting\e[0m"
-    exit -1 
+    echo -e "\n\e[0mINFO: not creating device $dev because it already exists\n"
   fi
 
-  disp_sep "- " 30
-
-  echo -e "Updating /etc/dhcpcd.conf..."
-  echo cp /etc/dhcpcd.conf /etc/dhcpcd.ORIGconf
+  echo
+  disp_sep "- " 32
+  echo -en "\n\e[33mInstalling default config files...\e[0m"
+  #mv /etc/hostapd/hostapd.conf /etc/hostapd/hostapd.ORIGconf
+  #cp ~/rpi-st-device/RPIhostapd.conf /etc/hostapd/hostapd.conf
+  #mv /etc/dnsmasq.conf /etc/dnsmasq.ORIGconf
+  #cp ~/rpi-st-device/RPIdnsmasq.conf /etc/dnsmasq.conf
+  echo -e "\e[33m\e[1mCOMPLETE\e[0m"
+  echo
+  echo -en "\e[33mUpdating /etc/dhcpcd.conf...\e[0m"
+  #cp /etc/dhcpcd.conf /etc/dhcpcd.ORIGconf
 
   # Check to see if there is already an entry in the file for this dev
   line=$(sed -n "/interface $dev/=" "$dhcpcd")
@@ -473,12 +557,12 @@ if [ "$keyin" == "y" ]
     echo -e "\ninterface $dev" >> "$dhcpcd"
     echo -e "\tstatic ip_address=$addr" >> "$dhcpcd"
     echo -e "\tnohook wpa_supplicant" >> "$dhcpcd"
-    echo -e "\e[1mCOMPLETE\e[0m"
+    echo -e "\e[1m\e[33mCOMPLETE\e[0m"
 
    # Otherwise we need to update existing entry
    # ...first find static ip_address line for the dev
    else
-   
+
     nextln=$((line+1))
 
     result=$(grep -n "static ip_address" "$dhcpcd" | cut -f1 -d:)
@@ -512,7 +596,7 @@ if [ "$keyin" == "y" ]
            nano "$dhcpcd"
            echo
           else
-           echo -e "\e[1mCOMPLETE\e[0m"
+           echo -e "\e[33m\e[1mCOMPLETE\e[0m"
          fi
        else
         errnum=$?
@@ -527,16 +611,13 @@ if [ "$keyin" == "y" ]
     fi
   fi
 
-
-  disp_sep "- " 30
-  echo -en "Updating /etc/hostapd/hostapd.conf..."
+  echo -en "\e[33mUpdating /etc/hostapd/hostapd.conf..."
   sed -i "/^country_code/c\\country_code=$cc" "$hostapd"
   sed -i "/^interface/c\\interface=$dev" "$hostapd"
   sed -i "/^channel/c\\channel=$ch" "$hostapd"
   echo -e "\e[1mCOMPLETE\e[0m"
 
-  disp_sep "- " 30
-  echo -en "Updating /etc/dnsmasq.conf..."
+  echo -en "\e[33mUpdating /etc/dnsmasq.conf..."
   sed -i "/^interface/c\\interface=$dev" "$dnsmasq"
   sed -i "/^dhcp-range/c\\dhcp-range=$adrange,12h" "$dnsmasq"
   sed -i "/^address/c\\address=/gw.wlan/$addr" "$dnsmasq"
@@ -544,26 +625,25 @@ if [ "$keyin" == "y" ]
 
   disp_sep "-" 60
   echo -e "\e[32m"
-  disp_sep "*" 26
-  echo -e "\e[21mCONFIGURATION IS COMPLETE!\e[0m"
-  disp_sep "*" 26
+  disp_sep "*" 25
+  echo -e "\e[21mCONFIGURATION IS ALL DONE"
+  disp_sep "*" 25
   echo
-  echo -en "\n\e[33m>> Restart networking service now? (\e[1my/n\e[21m)"
+  echo -en "\n\e[33m>> Restart networking service now? (\e[1my/n\e[0m)"
 
   keyin=""
   while [[ "$keyin" != "y" && "$keyin" != "n" ]]
    do
     read -rsn1 keyin
    done
+  echo
 
   if [ "$keyin" == "y" ]
    then
     echo
-    echo
-    echo -e "\e[39mRe-starting networking service..."
     echo systemctl stop networking
     echo systemctl start networking
-    echo -e "\e[1mCOMPLETE\e[0m"
+    echo -e "\n\e[33mNetwork services \e[1mrestarted\e[0m"
 
     disp_sep "-" 60
     keyin=""
@@ -573,23 +653,19 @@ if [ "$keyin" == "y" ]
      do
       read -rsn1 keyin
      done
-
+    echo
     if [ "$keyin" == "y" ]
      then
       echo
-      echo
-      echo -e "\e[39m  * Manually starting hostapd; \e[1mCtrl-c\e[21m to exit out when done *"
+      echo -e "\e[39m  * Starting hostapd; \e[1mCtrl-c\e[21m to exit out when done *"
       echo
       echo lxterminal -e /usr/sbin/hostapd /etc/hostapd/hostapd.conf &
     fi
 
    else
-    echo
-    echo -e "\nOK, reboot later to ensure $dev is operational"
+    echo -e "\n\e[0mOK, reboot later to ensure $dev is operational"
   fi
-
 fi
 
-echo
-echo -e "\n\e[1m*** DONE ***\e[0m\n"
+echo -e "\n\n\e[1m*** DONE ***\e[0m\n"
 exit 0
