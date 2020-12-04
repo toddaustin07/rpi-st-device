@@ -27,6 +27,8 @@ static_ip1=0
 static_ip2=0
 static_ip3=0
 static_ip4=0
+beg_ip1=0
+beg_ip2=0
 beg_ip3=0
 beg_ip4=0
 def_dev="wlap0"
@@ -79,9 +81,9 @@ checkip() {
  splitip "$inp"
  ipOK="no"
  
- if [[ ip1 -gt 0 && ip1 -le 255 ]]
+ if [[ ip1 -ge 0 && ip1 -le 255 ]]
   then
-   if [[ ip2 -gt 0 && ip2 -le 255 ]]
+   if [[ ip2 -ge 0 && ip2 -le 255 ]]
     then
      if [[ ip3 -ge 0 && ip3 -le 255 ]]
       then
@@ -92,7 +94,6 @@ checkip() {
      fi
    fi
  fi
-
 }
 
 # This function retrieves the current wifi devices from iw dev into global dev_array
@@ -119,7 +120,9 @@ getdev() {
  fi
 }
 
-# This function retrieves the device/IP pairs from dhcpcd.conf; stores in global arrays dhcp_array_dev & dhcp_array_ip, and count in global  ipcount
+# This function retrieves the device/IP pairs from dhcpcd.conf,
+#  stores ouput in global arrays dhcp_array_dev & dhcp_array_ip,
+#   and number of found ips in global ipcount
 getdhcp() {
 
  local i=0
@@ -159,11 +162,6 @@ getdhcp() {
      i=$((i+1))
     done
     ipcount=$ai
-    #echo "DONE; Count=$ipcount"
-    #echo "dev array: ${dhcp_array_dev[@]}"
-    #echo "ip array : ${dhcp_array_ip[@]}"
-  #else
-   #echo "None found"
  fi
 }
 
@@ -224,7 +222,6 @@ while [ "$getinput" == "y" ]
   getdev
 
   # initialze defaults
-
   cc="$def_cc"
   dev="$def_dev"
   addr="$def_addr"
@@ -241,6 +238,8 @@ while [ "$getinput" == "y" ]
   echo
   echo -e "   (Press ENTER to accept the [\e[96mdefaults\e[0m])"
   echo
+
+  # Get device name from user and validate
 
   inpOK="no"
   while [ "$inpOK" == "no" ]
@@ -287,6 +286,8 @@ while [ "$getinput" == "y" ]
     fi
    done
 
+  # Get static IP address from user and validate
+
   ipOK="no"
   while [ "$ipOK" == "no" ]
    do
@@ -296,10 +297,11 @@ while [ "$getinput" == "y" ]
     if [ "$instr" ]; then addr="$instr"; fi
 
     checkip "$addr"
-    if [ "$ipOK" == "no" ]
+    if [[ "$ipOK" == "no" || $ip4 -gt 253 ]]
      then
       echo -e "\t\e[91m** INVALID IP ADDRESS; TRY AGAIN"
       addr="$def_addr"
+      ipOK="no"
 
      else
       # check for possible duplicates from dhcpcd.conf
@@ -330,22 +332,21 @@ while [ "$getinput" == "y" ]
   static_ip3=$ip3
   static_ip4=$ip4
 
-  nextip=$((static_ip4+1))
-  begrange="$ip1.$ip2.$ip3.$nextip"
-
-
-  echo -e "\t\e[0mIP address range..."
-  #IFS=','
-  #read -a range <<< "$adrange"
-  #begrange="${range[0]}"
-  #endrange="${range[1]}"
+  # Calculate recommended ip range based on static address given above
 
   nextip=$((static_ip4+1))
   begrange="$ip1.$ip2.$ip3.$nextip"
-  nextip=$((static_ip4+11))
+
+  nextip=$((nextip+10))
+  if [ $nextip -gt 255 ]; then nextip=255; fi
   endrange="$ip1.$ip2.$ip3.$nextip"
+
   def_begrange="$begrange"
   def_endrange="$endrange"
+
+  echo -e "\t\e[0mIP address range..."
+
+  # Get Beginning IP range from user and validate
 
   ipOK="no"
   while [ "$ipOK" == "no" ]
@@ -354,7 +355,6 @@ while [ "$getinput" == "y" ]
     read instr
     if [ "$instr" ]; then begrange="$instr"; fi
 
-    consist="n"
     checkip "$begrange"
     if [ "$ipOK" == "yes" ]
      then
@@ -367,10 +367,17 @@ while [ "$getinput" == "y" ]
            then
             if [ $ip4 -gt $static_ip4 ]
              then
-              ipOK="yes"
-              consist="yes"
-              beg_ip3=$ip3
-              beg_ip4=$ip4
+              if [ $ip4 -le 254 ]
+               then
+                ipOK="yes"
+                consist="yes"
+                beg_ip1=$ip1
+                beg_ip2=$ip2
+                beg_ip3=$ip3
+                beg_ip4=$ip4
+               else
+                echo -e "\t\e[91m** Choose a lower fourth section"
+              fi
              else
               echo -e "\t\e[91m** Fourth section not higher than static IP address"
             fi
@@ -387,18 +394,18 @@ while [ "$getinput" == "y" ]
       echo -e "\t** INVALID IP ADDRESS; TRY AGAIN"
     fi
 
-    if [ "$consist" == "no" ]
-     then
-      echo -e "\t\e[91m** Not consistent with your static IP address"
-    fi
-
     if [ "$ipOK" == "no" ]; then begrange="$def_begrange"; fi
 
    done
 
+  # Calculate recommended ending ip range
+
   nextip=$((ip4+10))
+  if [ $nextip -gt 255 ]; then nextip=255; fi
   endrange="$ip1.$ip2.$ip3.$nextip"
   def_endrange="$endrange"
+
+  # Get ending ip range from user and validate
 
   ipOK="no"
   while [ "$ipOK" == "no" ]
@@ -407,16 +414,14 @@ while [ "$getinput" == "y" ]
     read instr
     if [ "$instr" ]; then endrange="$instr"; fi
 
-    consist="no"
     checkip "$endrange"
     if [ "$ipOK" == "yes" ]
      then
       ipOK="no"
-      if [ $ip3 -eq $beg_ip3 ]
+      if [[ $ip1 -eq $beg_ip1 && $ip2 -eq $beg_ip2 && $ip3 -eq $beg_ip3 ]]
        then
         if [ $ip4 -gt $beg_ip4 ]
          then
-          consist="yes"
           ipOK="yes"
          else
           echo -e "\t\e[91m** Invalid IP range"
@@ -429,6 +434,8 @@ while [ "$getinput" == "y" ]
     fi
     if [ $ipOK == "no" ]; then endrange="$def_endrange"; fi
    done 
+
+  # Get wifi channel number from user and validate
 
   inpOK="no"
   while [ "$inpOK" == "no" ]
@@ -455,6 +462,8 @@ while [ "$getinput" == "y" ]
     fi
    done
 
+  # Get country code from user and validate
+
   inpOK="no"
   while [ "$inpOK" == "no" ]
    do
@@ -475,6 +484,8 @@ while [ "$getinput" == "y" ]
       echo -e "\t\e[91m** Invalid country code"
     fi
    done
+
+  # Display summary for user confirmation
 
   echo -e "\n\n\n\n\n\n\n\n\n\n\n\n\n"
   disp_sep "v-" 32
