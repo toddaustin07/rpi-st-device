@@ -18,6 +18,7 @@ With thanks to Kwang-Hui of Samsung who patiently answered my many questions dur
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <errno.h>
 
 #include </home/pi/st-device-sdk-c/src/include/bsp/iot_bsp_wifi.h>
 #include </home/pi/st-device-sdk-c/src/include/iot_error.h>
@@ -25,23 +26,31 @@ With thanks to Kwang-Hui of Samsung who patiently answered my many questions dur
 #include "/home/pi/st-device-sdk-c/src/include/os/iot_os_util.h"
 #include "/home/pi/st-device-sdk-c/src/include/iot_util.h"
 
-#define RPICONFFILE "RPIConfig.conf"
+#define RPICONFFILE "RPISetup.conf"
 #define DEFAULTDIR "./"
+#define SOFTAPCONFFILE "/etc/hostapd/hostapd.conf"
+#define SOFTAPSTART "bash ./softapstart"
+#define SOFTAPSTOP "bash ./softapstop"
 
-#define configtag_ETH "ETHERNET"
-#define configtag_MNG "MANAGEWIFI"
-#define configtag_devSTA "STATIONDEV"
-#define configtag_devAP "APDEV"
-#define configtag_devETH "ETHDEV"
-#define configtag_dual "DUALWIFIMODE"
-#define configtag_hconf "HOSTAPDCONF"
+#define configtag_ETH "USE_ETHERNET"
+#define configtag_AP "AP_SHUTDOWN"
+#define configtag_devSTA "STATION_DEV"
+#define configtag_devAP "AP_DEV"
+#define configtag_devETH "ETH_DEV"
 
-#define SSIDWAITRETRIES 5
+#define MAXDEVNAMESIZE 10
+
+#define SSIDWAITRETRIES 7
 #define SSIDWAITTIME 250000
 #define SCANMODEWAITTIME 800000
 #define SOFTAPWAITTIME 999999
+#define SEQSYSCMDWAIT 500000
 
+extern int errno;
 
+/** DEFINE FUNCTIONS CONTAINED IN THIS FILE **/
+
+int _perform_scan();
 void _parsemac(char *textptr, uint8_t *hexbuf);
 unsigned int _htoi (const char *ptr);
 int _getnumeric(int maxdigits, char *text);
@@ -53,21 +62,43 @@ int _enableWifi(char *dev);
 int _softblock(char *dev, char set);
 int _waitWifiConn(char *dev, char *ssid);
 int _SoftAPControl(char *cmd);
-int _setupHostapd(char*ssid, char *password);
-int _updateHfile(char *fname, char *ssid,char *password);
+int _initDevNames();
+int _setupHostapd(char*ssid, char *password, char *iface);
+int _updateHfile(char *fname, char *ssid,char *password, char*iface);
 int _switchSSID(char *dev, char *ssid);
+bool _checkfortestdevfile();
 
-static char WifiMng_flag;
-static char Ethernet_flag;
-static char DualMode_flag;
+/** DEFINE GLOBAL STATIC VARIABLES **/
+
+struct scandata {
+    int apcount;
+    iot_wifi_scan_result_t apdata[IOT_WIFI_MAX_SCAN_RESULT];
+};
+
+static struct scandata scanstore;
+
+static bool Ethernet = true;
+static bool ManageAP = true;
+static bool Dualmode = true;
+static bool AP_ON = false;
 static char PHYSWIFIDEV[5] = "phy0";
-static char wifi_sta_dev[12] = "wlan0";
-static char wifi_ap_dev[12] = "wlan0";
-static char eth_dev[12] = "eth0";
-static char hconfig[100];
+static char wifi_sta_dev[MAXDEVNAMESIZE+1] = "";
+static char wifi_ap_dev[MAXDEVNAMESIZE+1] = "";
+static char eth_dev[MAXDEVNAMESIZE+1] = "";
 
 static int WIFI_INITIALIZED = false;
 
+/**********************************************************************************************************************
+    Required BSP fuction: iot_bsp_wifi_init()
+
+    Purpose:    Validate & Initialize RPI wireless devices that will be needed; includes reading RPI configuration file
+                and initializing global static flags
+
+    Input:      none
+
+    Output:     return IOT_ERROR_ value (IOT_ERROR_NONE if no errors)
+
+***********************************************************************************************************************/
 iot_error_t iot_bsp_wifi_init()
 {
 
@@ -77,32 +108,46 @@ iot_error_t iot_bsp_wifi_init()
 
     if (!WIFI_INITIALIZED)  {
 
-        _getrpiconf(DEFAULTDIR);                                        // read config file
+ //       _getrpiconf(DEFAULTDIR);                            // read config file
 
-        if (Ethernet_flag == 'Y') {                                     // If ethernet, then check it's connected
+        if (!_initDevNames()) {
+            IOT_ERROR("[rpi] Failure initializng interface device names");
+            return IOT_ERROR_CONN_OPERATE_FAIL;
+        }
+
+        if (strcmp(wifi_sta_dev,wifi_ap_dev) == 0)          // if no separate AP device, then can't assume dual mode
+            Dualmode = false;
+        else
+            Dualmode = true;
+
+        if (Ethernet) {                                     // If ethernet device, check it is up
 
             if (_isupIface(eth_dev))
                 IOT_INFO("[rpi] Ethernet connection confirmed: %s",eth_dev);
 
             else {
 
-                IOT_ERROR("Ethernet not connected");
+                IOT_ERROR("[rpi] Ethernet not connected");
                 return IOT_ERROR_NET_INVALID_INTERFACE;
             }
 
         }
+        else
+            IOT_INFO("[rpi] No Ethernet");
 
-        if(_isconfWifi(wifi_sta_dev,ssid)) {                             // wifi doesn't have to be on or connected, just devices defined
+
+        if(_isconfWifi(wifi_sta_dev,ssid)) {             // wifi doesn't have to be on or connected, just devices defined
 
             IOT_INFO("[rpi] Wifi station device confirmed: %s",wifi_sta_dev);
 
-            if(_isconfWifi(wifi_ap_dev,ssid))
-                IOT_INFO("[rpi] Wifi AP device confirmed: %s",wifi_ap_dev);
+            if (Dualmode) {
+                if(!_isconfWifi(wifi_ap_dev,ssid)) {
 
-            else {
-                IOT_ERROR("Wifi AP device not configured: %s",wifi_ap_dev);
-                return IOT_ERROR_NET_INVALID_INTERFACE;
+                    IOT_ERROR("Wifi AP device not configured: %s",wifi_ap_dev);
+                    return IOT_ERROR_NET_INVALID_INTERFACE;
+                }
             }
+            IOT_INFO("[rpi] Wifi AP device confirmed: %s",wifi_ap_dev);
         }
         else {
             IOT_ERROR("Wifi station device not configured: %s",wifi_sta_dev);
@@ -118,6 +163,17 @@ iot_error_t iot_bsp_wifi_init()
 	return IOT_ERROR_NONE;
 }
 
+/*************************************************************************************
+Subroutine: _getrpiconf
+
+Purpose:    Read RPI configuration file and use parameters to initialize global values
+
+Input:      String pointer to configuration file name
+
+Ouput:      Global values:
+
+**************************************************************************************/
+
 iot_error_t _getrpiconf(char *currdir) {
 
     FILE *pf;
@@ -128,10 +184,6 @@ iot_error_t _getrpiconf(char *currdir) {
     char parmstr[50];
 
     // Initialize global static defaults
-
-    WifiMng_flag = 'Y';
-    Ethernet_flag = 'Y';
-    DualMode_flag = 'N';
 
     strcpy(pathname,currdir);
     strcat(pathname,RPICONFFILE);
@@ -147,23 +199,23 @@ iot_error_t _getrpiconf(char *currdir) {
                    if(_parseconfparm(parmstr, textptr)) {
 
                         if ((parmstr[0] == 'Y') || (parmstr[0] == 'y'))
-                            WifiMng_flag = 'Y';
+                            Ethernet = true;
 
                         else if ((parmstr[0] == 'N') || (parmstr[0] == 'n'))
-                            WifiMng_flag = 'N';
+                            Ethernet = false;
 
                     }
                 } else
-                    if ((textptr = strstr(readline,configtag_MNG))) {
+                    if ((textptr = strstr(readline,configtag_AP))) {
 
 
                         if (_parseconfparm(parmstr, textptr)) {
 
                             if ((*parmstr == 'Y') || (*parmstr == 'y'))
-                                WifiMng_flag = 'Y';
+                                ManageAP = true;
 
                             else if ((*parmstr == 'N') || (*parmstr == 'n'))
-                                WifiMng_flag = 'N';
+                                ManageAP = false;
                         }
 
                     } else
@@ -191,24 +243,6 @@ iot_error_t _getrpiconf(char *currdir) {
                                         strcpy(eth_dev,parmstr);
 
                                 }
-                                else
-                                    if ((textptr = strstr(readline,configtag_dual))) {
-
-                                        if (_parseconfparm(parmstr, textptr)) {
-
-                                            if ((*parmstr == 'Y') || (*parmstr == 'y'))
-                                                DualMode_flag = 'Y';
-
-                                            else if ((*parmstr == 'N') || (*parmstr == 'n'))
-                                                DualMode_flag = 'N';
-                                        }
-
-
-                                    }
-                                    else
-                                        if ((textptr = strstr(readline,configtag_hconf)))
-
-                                            _parseconfparm(hconfig, textptr);
 
 
             }
@@ -223,6 +257,243 @@ iot_error_t _getrpiconf(char *currdir) {
         IOT_INFO("[rpi] RPI configuration file not found; defaults assumed");
 
     return IOT_ERROR_NONE;
+}
+
+bool _checkfortestdevfile() {
+
+    #define TESTDEVFILE "./.dev"
+
+    FILE *pf;
+    char pathname[100];
+    char *readline = NULL;
+    char *textptr;
+    char parmstr[50];
+    size_t len;
+    int errnum;
+
+    // Initialize global static defaults
+
+    strcpy(pathname,TESTDEVFILE);
+
+    if ((pf = fopen(pathname,"r")) != NULL) {
+
+        while (getline(&readline,&len,pf)!= EOF) {
+
+            if ((readline[0] != '#') && (readline[0] != '\n'))  {       // skip comments and blank lines
+
+
+                if((textptr = strstr(readline,configtag_devSTA))) {
+
+                    if(_parseconfparm(parmstr, textptr))
+
+                        strcpy(wifi_sta_dev,parmstr);
+                }
+                else {
+
+                    if((textptr = strstr(readline,configtag_devAP))) {
+
+                        if(_parseconfparm(parmstr, textptr))
+
+                            strcpy(wifi_ap_dev,parmstr);
+
+                    }
+                    else {
+                        if((textptr = strstr(readline,configtag_devETH))) {
+
+                            if(_parseconfparm(parmstr, textptr))
+
+                                strcpy(eth_dev,parmstr);
+
+
+                        }
+                    }
+                }
+            } //end if blank line
+        }
+
+
+        fclose(pf);
+        if (strcmp(eth_dev, "") == 0)
+            Ethernet = false;
+        else
+            Ethernet = true;
+        return true;
+
+    } else {
+        errnum = errno;
+        if (errnum != ENOENT)       // anything but file not found is unexpected
+            IOT_INFO("[rpi] Warning: file error %d on dev test file open",errnum);
+        return false;
+    }
+
+}
+/***************************************************************
+
+Initial global variables for station, AP, and Ethernet devices
+
+***************************************************************/
+
+int _initDevNames() {
+
+    FILE *pf;
+    const int maxdatasize = 100;
+    char data[maxdatasize];
+    char devname[MAXDEVNAMESIZE+1];
+    char devtype[10];
+    char command[40];
+    bool found = false;
+    int i;
+    char *textptr;
+
+
+    if(_checkfortestdevfile())      // If test device file exists, we'll pick up device names from there
+        return true;
+
+    // FIRST GET ETHERNET NAME AND CONFIRM CONNECTED
+
+    strcpy(eth_dev,"");
+
+    pf = popen("ls /sys/class/net","r");
+
+    if (pf)  {
+
+         if(fgets(data,maxdatasize,pf)) {
+
+            pclose(pf);
+
+            i = 0;
+
+            while ((*(data+i) != ' ') && (*(data+i) != '\n'))  {        // Ethernet device will be first text in ls command output
+                devname[i] = *(data+i);
+                ++i;
+            }
+
+            devname[i] = '\0';
+
+            if (strcmp(devname,"eth0") != 0) {
+                IOT_ERROR("[rpi] Unexpected Ethernet device name",devname);
+                Ethernet = false;
+            } else {
+
+                strcpy(eth_dev,devname);            // Found device name; save it in global static variable
+
+                sprintf(command,"cat /sys/class/net/%s/carrier",devname);
+                pf = popen(command,"r");
+                if (pf)  {
+
+                    if(fgets(data,maxdatasize,pf)) {
+
+                        pclose(pf);
+                        if (*data == '1') {
+
+                            Ethernet = true;
+
+                        } else {
+
+                            IOT_INFO("Ethernet device %s not connected",devname);
+                            Ethernet = false;
+
+                        }
+                    } else {
+                        IOT_ERROR("[rpi] Could not read Ethernet status %s",devname);
+                        pclose(pf);
+                        Ethernet = false;
+                    }
+                } else {
+                    IOT_ERROR("[rpi] Could not check Ethernet status %s",devname);
+                    Ethernet = false;
+                }
+            }
+
+        } else {
+
+            IOT_ERROR("[rpi] Could not check Ethernet status %s",devname);
+            pclose(pf);
+            Ethernet = false;
+        }
+
+
+
+    } else {
+
+        IOT_ERROR("[rpi] Could not read device directory");
+        Ethernet = false;
+
+    }
+
+    // NOW GET WIRELESS DEVICE NAMES
+
+    strcpy(wifi_ap_dev,"");
+    strcpy(wifi_sta_dev, "");
+
+    pf = popen("iw dev","r");
+
+    if (pf) {
+        while(fgets(data,maxdatasize,pf)) {             // search for Interface line
+
+            if ((textptr = strstr(data,"Interface"))) {
+
+                i = 0;
+                textptr += 10;
+
+                while ((*(textptr+i) != ' ') && (*(textptr+i) != '\n'))  {             // get the device name
+
+                    *(devname+i) = *(textptr+i);
+                    ++i;
+                }
+                devname[i] ='\0';
+                found = false;
+
+                while(fgets(data,maxdatasize,pf) && !found) {     // search for type line
+                    if ((textptr = strstr(data,"type"))) {
+
+                        i = 0;
+                        textptr += 5;
+
+                        while ((*(textptr+i) != ' ') && (*(textptr+i) != '\n')) {       // get the type descriptor
+
+                            *(devtype+i) = *(textptr+i);
+                            ++i;
+                        }
+                        devtype[i] = '\0';
+
+                        if (strcmp(devtype,"managed") == 0)
+                            strcpy(wifi_sta_dev, devname);
+                        else {
+                            if (strcmp(devtype,"AP") == 0)
+                                strcpy(wifi_ap_dev,devname);
+                        }
+                        found = true;
+
+                    }
+
+                }   // end search-for-type loop
+            }
+
+        }    // end Interface search loop
+
+        pclose(pf);
+
+
+        if (strcmp(wifi_sta_dev,"") == 0) {
+            IOT_ERROR("[rpi] Wifi station device not found");
+            return 0;
+        }
+
+        if (strcmp(wifi_ap_dev,"") == 0) {
+            Dualmode = false;
+            IOT_INFO("[rpi] WARNING - No dedicated AP virtual device defined; will use %",wifi_sta_dev);
+        }
+
+
+    } else {
+
+        IOT_ERROR("[rpi] Could not perform iw dev command");
+        return 0;
+    }
+
+    return 1;
+
 }
 
 int _parseconfparm(char *parmstr, char *text) {
@@ -359,11 +630,23 @@ int _isconfWifi(char *devname, char *ssid) {
 
 }
 
+/*******************************************************************************************
+    Required BSP fuction: iot_bsp_wifi_set_mode()
+
+    Purpose:    Switch wireless operation to request modes (off/scan/station/AP)
+
+    Input:      iot_wifi_conf
+
+    Output:     return IOT_ERROR_ value (IOT_ERROR_NONE if no errors)
+
+*******************************************************************************************/
+
 iot_error_t iot_bsp_wifi_set_mode(iot_wifi_conf *conf)
 {
 	//iot_wifi_scan_result_t scanresult[IOT_WIFI_MAX_SCAN_RESULT];
 
 	char connected_ssid[IOT_WIFI_MAX_SSID_LEN+1];
+	int scancount;
 
 
 //	IOT_INFO("[rpi] iot_bsp_wifi_set_mode = %d", conf->mode);
@@ -373,14 +656,10 @@ iot_error_t iot_bsp_wifi_set_mode(iot_wifi_conf *conf)
 	case IOT_WIFI_MODE_OFF:
 
         IOT_INFO("[rpi] Requested mode OFF");
-
-        if (WifiMng_flag == 'Y') {
-
-            _softblock(PHYSWIFIDEV,'Y');                // issue a soft block to wifi device
+                                                        // we don't ever turn off the station device, just AP
+        if (ManageAP)
 
             _SoftAPControl("stop");                     // make sure hostapd/dnsmasq are stopped
-
-        }
 
 		break;
 
@@ -388,20 +667,27 @@ iot_error_t iot_bsp_wifi_set_mode(iot_wifi_conf *conf)
 
         IOT_INFO("[rpi] Requested mode SCAN");
 
-        if (WifiMng_flag == 'Y')  {
+        if (!Dualmode && AP_ON) {                       // Can't scan if not Dual wifi devices and in AP mode
 
-            if(!_enableWifi(wifi_sta_dev))  {                       // wifi device needs to be up; but doesn't have to be connected
-
-                IOT_ERROR("[rpi] Cannot enable Wifi");
-                return IOT_ERROR_NET_CONNECT;
-            }
-
-
-            usleep(SCANMODEWAITTIME);                                             //give the wifi station some time to come up
-
-            IOT_INFO("[rpi] WiFi operating & ready for scan");
-
+            IOT_INFO("[rpi] Unable to perform scan in current state");
+            return IOT_ERROR_NONE;
         }
+
+        if(!_enableWifi(wifi_sta_dev))  {                       // wifi device needs to be up; but doesn't have to be connected
+            IOT_ERROR("[rpi] Cannot enable Wifi");
+            return IOT_ERROR_NET_CONNECT;
+        }
+
+        scancount = _perform_scan();                        // do scan and check resulting AP count
+
+        if (scancount == 0) {                               // if no results...
+
+            usleep(SCANMODEWAITTIME);                       //     pause and
+            scancount = _perform_scan();                    //     try one more time
+        }
+
+        IOT_INFO("[rpi] WiFi scan completed. %d APs found",scancount);
+
 
 		break;
 
@@ -410,47 +696,55 @@ iot_error_t iot_bsp_wifi_set_mode(iot_wifi_conf *conf)
 
         IOT_INFO("[rpi] Requested mode STATION");
 
-        if (WifiMng_flag == 'Y')  {
+        if (AP_ON) {                                          // Turn off SoftAP
 
-            if (DualMode_flag == 'N')
-                if(!_SoftAPControl("stop"))                         // if not dual mode, AP must be stopped
-                    IOT_INFO("[rpi] Problem stopping SoftAP");
-
-            if(!_enableWifi(wifi_sta_dev))  {                       // Ensure wifi is operational
-
-                if (Ethernet_flag == 'N') {
-
-                    IOT_ERROR("[rpi] Cannot enable Wifi station mode");
-                    return IOT_ERROR_NET_CONNECT;
-                }
-                else
-                    IOT_INFO("[rpi] Wifi not operating; Defaulting to Ethernet for station mode");
-
-            } else
-                IOT_INFO("[rpi] WiFi is operational");
-
-            //NOW CHANGE CONNECTION PER conf->ssid
-            usleep(SSIDWAITTIME);
-            if (!_switchSSID(wifi_sta_dev,conf->ssid)) {
-                IOT_ERROR("[rpi] Failed to connect to ssid %s",conf->ssid);
-                return IOT_ERROR_CONNECT_FAIL;
-            }
-
-            usleep(SSIDWAITTIME);
-        } //end if manage flag on
-
-        // Get SSID acquired (whether managed wifi or not)
-
-        if (_waitWifiConn(wifi_sta_dev,connected_ssid))     // Regardless of managed or not, confirm connected SSID
-
-            strcpy(conf->ssid,connected_ssid);              // If self-managed, we need to update the connected ssid
-
-        else {
-            IOT_ERROR("[rpi] Failed to connect to ssid %s",conf->ssid);
-            return IOT_ERROR_NET_CONNECT;
+            if(!_SoftAPControl("stop"))
+                IOT_INFO("[rpi] Problem stopping SoftAP");
         }
 
-		IOT_INFO("[rpi] Connected to AP SSID: %s", conf->ssid);
+        if (!Dualmode)
+                usleep(SOFTAPWAITTIME);                         // Swithing wlan0; give it some time to transition
+
+        if(_enableWifi(wifi_sta_dev))  {                       // Ensure wifi station is operational
+
+            //NOW CHANGE CONNECTION PER conf->ssid
+
+            if (!_switchSSID(wifi_sta_dev,conf->ssid)) {    // Switch to ssid; if failed...
+
+                if (Ethernet)
+                    IOT_INFO("[rpi] Could not connect to ssid %s. Will use Ethernet",conf->ssid);
+                else {
+                    IOT_ERROR("[rpi] Failed to connect to ssid %s",conf->ssid);
+                    return IOT_ERROR_CONNECT_FAIL;
+                }
+
+            } else {                                       // Switch SSID went OK
+
+                usleep(SSIDWAITTIME);
+
+                if (!_waitWifiConn(wifi_sta_dev,connected_ssid))  {   // confirm connected SSID
+
+                    if (Ethernet)
+                        IOT_INFO("[rpi] Didn't connect to ssid %s.  Will use Ethernet",conf->ssid);
+                    else {
+                        IOT_ERROR("[rpi] Failed to connect to ssid %s",conf->ssid);
+                        return IOT_ERROR_NET_CONNECT;
+                    }
+                } else
+                    IOT_INFO("[rpi] Connected to AP SSID: %s", conf->ssid);
+
+            }
+
+        } else {            // reach here if failed to enable wifi station
+
+            if (!Ethernet) {                                    // Ethernet is fallback, if not configured, then error
+
+                IOT_ERROR("[rpi] Cannot enable Wifi station mode");
+                return IOT_ERROR_NET_CONNECT;
+            }
+            else
+                IOT_INFO("[rpi] Wifi station %s not enabled; Defaulting to Ethernet for station mode",wifi_sta_dev);
+        }
 
         return IOT_ERROR_NONE;
 
@@ -461,39 +755,41 @@ iot_error_t iot_bsp_wifi_set_mode(iot_wifi_conf *conf)
 
         IOT_INFO("[rpi] Requested mode SoftAP");
 
-        if (WifiMng_flag == 'Y') {
+        if (ManageAP) {
 
-            if (!_setupHostapd(conf->ssid,conf->pass)) {               // Setup hostapd.conf file with ssid & password
+            if (!_setupHostapd(conf->ssid,conf->pass,wifi_ap_dev)) {               // Setup hostapd.conf file with ssid & password
 
                 IOT_ERROR("[rpi] Couldn't update hostapd.conf file");
                 return IOT_ERROR_CONN_OPERATE_FAIL;
             }
 
 
-            if(!_enableWifi(wifi_sta_dev))  {                       // wifi device needs to be up; but doesn't have to be connected
+            if(!_enableWifi(wifi_ap_dev))  {                            // make sure AP device is enabled
 
-                IOT_ERROR("[rpi] Cannot enable Wifi");
+                IOT_ERROR("[rpi] Wifi device %s not enabled",wifi_ap_dev);
                 return IOT_ERROR_CONN_OPERATE_FAIL;
             }
 
 
-            usleep(SOFTAPWAITTIME);                                  // pause to let wireless come up
+            if (!Dualmode)
+                usleep(SOFTAPWAITTIME);                                 // pause to let wireless come up
 
 
-            if(!_SoftAPControl("start")) {                            // start hostapd & dnsmasq services
+            if(!_SoftAPControl("start")) {                             // start hostapd & dnsmasq services
                 IOT_ERROR("[rpi] Problem starting SoftAP");
                 return IOT_ERROR_CONN_OPERATE_FAIL;
             }
 
             usleep(SOFTAPWAITTIME);                                 //pause to let hostapd & dnsmasq to come up
 
+            // NEED TO ADD CODE HERE TO VERIFY HOSTAPD IS UP
         }
 
 
 		IOT_DEBUG("wifi_init_softap finished.SSID:%s password:%s",
 				wifi_config.ap.ssid, wifi_config.ap.password);
 
-		IOT_INFO("[rpi] AP Mode Started");
+		IOT_INFO("[rpi] AP Mode Started on device %s",wifi_ap_dev);
 
 		break;
 
@@ -511,13 +807,17 @@ int _enableWifi(char *dev) {
 
     if(_softblock(PHYSWIFIDEV,'N')) {                       // ensure softblock is off for wifi
 
-        if (_isupIface(dev))                                // verify interface is up
+        usleep(SEQSYSCMDWAIT);
 
+        if (strcmp(dev,wifi_ap_dev) != 0) {                 // If not AP device check (won't show 'UP')
+
+            if (_isupIface(dev))                            // verify interface is up
+                return(1);
+
+            else
+                IOT_ERROR("[rpi] Wifi interface is down");
+        } else
             return(1);
-
-        else
-            IOT_ERROR("[rpi] Wifi interface is down");
-
     }
     else
         IOT_ERROR("[rpi] Wifi couldn't be enabled");
@@ -608,37 +908,45 @@ int _waitWifiConn(char *dev, char *ssid) {
 int _SoftAPControl(char *cmd) {
 
     FILE *pf;
-    char command[40];
+    char command[30];
+    int errnum;
 
-    strcpy(command,"sudo service hostapd ");
-    strcat(command,cmd);
 
-    pf = popen(command,"r");
+    if (strcmp(cmd,"start") == 0)
+        strcpy(command,SOFTAPSTART);
 
-    if (!pf) {
+    else
+        if (strcmp(cmd,"stop") == 0)
+            strcpy(command, SOFTAPSTOP);
 
-        IOT_ERROR("[rpi] Could not %s hostapd service",cmd);
-        return(0);
-    }
-    pclose(pf);
-
-    strcpy(command,"sudo service dnsmasq ");
-    strcat(command,cmd);
+        else
+            return 0;
 
     pf = popen(command,"r");
 
     if (!pf) {
 
-        IOT_ERROR("[rpi] Could not %s dnsmasq service",cmd);
-        return(0);
+        errnum = errno;
+        if (errnum == ENOENT)
+            IOT_ERROR("[rpi] Missing Service %s service control script in current directory",cmd);
+        else
+            IOT_ERROR("[rpi] File open error %d on %s service control script",errnum,cmd);
+
+        return (0);
     }
+
     pclose(pf);
+
+    if (strcmp(command,SOFTAPSTART) == 0)
+        AP_ON = true;
+    else
+        AP_ON = false;
 
     IOT_INFO("[rpi] SoftAP service %s issued",cmd);
     return(1);
 }
 
-int _setupHostapd(char*ssid, char *password) {
+int _setupHostapd(char*ssid, char *password, char *iface) {
 
     FILE *pf;
     char *readline;
@@ -646,12 +954,14 @@ int _setupHostapd(char*ssid, char *password) {
     char *textptr;
     char readSSID[IOT_WIFI_MAX_SSID_LEN+1];
     char readPW[35];
+    char readInterface[MAXDEVNAMESIZE+1];
 
     int rc;
+    int errnum;
     int progcount = 0;
     int updateflag = 0;
 
-    if((pf=fopen(hconfig, "r"))) {
+    if((pf=fopen(SOFTAPCONFFILE, "r"))) {
 
         while (getline(&readline,&len,pf)!= EOF) {
 
@@ -671,7 +981,20 @@ int _setupHostapd(char*ssid, char *password) {
 
                     if (strcmp(readPW,password) != 0)
                         updateflag++;
+                } else {
+
+                    if ((textptr = strstr(readline,"interface"))) {
+
+                        progcount++;
+                        _parseconfparm(readInterface,textptr);
+
+                        if (strcmp(readInterface,iface) != 0)
+                            updateflag++;
+
+                    }
+
                 }
+
             }
         }
 
@@ -679,23 +1002,23 @@ int _setupHostapd(char*ssid, char *password) {
         if (readline)
             free(readline);
 
-        if ((progcount == 2) && (updateflag > 0)) {         // if found both ssid & password ok, AND either needs updating
+        if ((progcount == 3) && (updateflag > 0)) {         // if found ssid, password, and interface ok, AND any needs updating
 
-            if(_updateHfile(hconfig,ssid,password)) {       // update hostapd.conf file with ssid & password
+            if(_updateHfile(SOFTAPCONFFILE,ssid,password,iface)) {       // update hostapd.conf file with ssid & password
 
-                IOT_INFO("[rpi] hostapd config file updated with ssid=%s, pw=%s",ssid,password);
+                IOT_INFO("[rpi] hostapd config file updated with ssid=%s, pw=%s, device=%s",ssid,password,iface);
                 rc = 1;
             }
             else {
 
-                IOT_ERROR("[rpi] Could not update hostapd config file: %s",hconfig);
+                IOT_ERROR("[rpi] Could not update hostapd config file: %s",SOFTAPCONFFILE);
                 rc = 0;
             }
 
         }
         else {
-            if (progcount < 2) {
-                IOT_ERROR("[rpi] Missing ssid or passphrase in %s",hconfig);
+            if (progcount < 3) {
+                IOT_ERROR("[rpi] Missing interface, ssid, or passphrase in %s",SOFTAPCONFFILE);
                 rc = 0;
             }
         }
@@ -703,7 +1026,8 @@ int _setupHostapd(char*ssid, char *password) {
 
     }
     else {
-        IOT_ERROR("[rpi] Could not open hostapd config file: %s",hconfig);
+        errnum = errno;
+        IOT_ERROR("[rpi] Could not open config file: %s; errno=%d",SOFTAPCONFFILE,errnum);
         rc = 0;
     }
 
@@ -711,7 +1035,7 @@ int _setupHostapd(char*ssid, char *password) {
 
 }
 
-int _updateHfile(char *fname, char *ssid,char *password) {
+int _updateHfile(char *fname, char *ssid,char *password, char *iface) {
 
     #define TMPFILENAME "./__tempconf"
     #define PRIORCONF "./__prior_hostapd.conf"
@@ -741,16 +1065,26 @@ int _updateHfile(char *fname, char *ssid,char *password) {
 
         if ((textptr = strstr(readline,"ssid="))) {
             if (textptr == readline)
-                 fprintf(fp2,"ssid=%s\n",ssid);
+
+                fprintf(fp2,"ssid=%s\n",ssid);
 
         }
         else {
+
             if ((textptr = strstr(readline,"wpa_passphrase=")))
 
                 fprintf(fp2,"wpa_passphrase=%s\n",password);
-            else
 
-                fprintf(fp2,"%s",readline);
+            else {
+
+                if ((textptr = strstr(readline,"interface=")))
+
+                    fprintf(fp2,"interface=%s\n",iface);
+
+                else
+
+                    fprintf(fp2,"%s",readline);
+            }
         }
 
     }
@@ -837,7 +1171,7 @@ int _switchSSID(char *dev, char *ssid) {
 
 
     } else {
-        IOT_ERROR("[rpi] Failed issue wpa_cli command");
+        IOT_ERROR("[rpi] Failed to issue wpa_cli command");
         return(0);
     }
 
@@ -846,6 +1180,33 @@ int _switchSSID(char *dev, char *ssid) {
 
 uint16_t iot_bsp_wifi_get_scan_result(iot_wifi_scan_result_t * scan_result)
 {
+    int index;
+
+    IOT_INFO("[rpi] Get scan result requested");
+
+    for(index = 0;index < scanstore.apcount;index++) {
+
+        scan_result[index].bssid[0] = scanstore.apdata[index].bssid[0];
+        scan_result[index].bssid[1] = scanstore.apdata[index].bssid[1];
+        scan_result[index].bssid[2] = scanstore.apdata[index].bssid[2];
+        scan_result[index].bssid[3] = scanstore.apdata[index].bssid[3];
+        scan_result[index].bssid[4] = scanstore.apdata[index].bssid[4];
+        scan_result[index].bssid[5] = scanstore.apdata[index].bssid[5];
+
+        strcpy((char *) scan_result[index].ssid, (char *) scanstore.apdata[index].ssid);
+
+        scan_result[index].rssi = scanstore.apdata[index].rssi;
+        scan_result[index].freq = scanstore.apdata[index].freq;
+
+        scan_result[index].authmode = scanstore.apdata[index].authmode;
+
+    }
+
+    return(scanstore.apcount);
+}
+
+int _perform_scan()  {
+
     const int maxdatasize = 1200;
     #define LINUXWIFISCAN_p1 "sudo iw "
     #define LINUXWIFISCAN_p2 " scan"
@@ -855,18 +1216,21 @@ uint16_t iot_bsp_wifi_get_scan_result(iot_wifi_scan_result_t * scan_result)
     char data[maxdatasize];
     int ap_num;
     char *lineptr;
+    int errnum, ferr;
     int i;
     char tmpbuf[IOT_WIFI_MAX_SSID_LEN+1];
 
-    IOT_INFO("[rpi] Wifi AP scan results requested");
+    IOT_INFO("[rpi] Running Wifi AP scan using %s",wifi_sta_dev);
 
     // Execute system command to get wifi scan list
     strcpy(command,LINUXWIFISCAN_p1);
     strcat(command, wifi_sta_dev);
     strcat(command, LINUXWIFISCAN_p2);
 
-    pf = popen(command,"r");
+    scanstore.apcount = 0;
     ap_num = -1;
+
+    pf = popen(command,"r");
 
     if (pf) {
 
@@ -880,9 +1244,9 @@ uint16_t iot_bsp_wifi_get_scan_result(iot_wifi_scan_result_t * scan_result)
                 if (lineptr == data) {                              // Make sure it is really a BSS record; should be no leading chars
                     ap_num = ap_num + 1;                                // Increment AP index
 
-                    scan_result[ap_num].authmode = IOT_WIFI_AUTH_OPEN;  // Deafult to Open auth mode in case not specified
+                    scanstore.apdata[ap_num].authmode = IOT_WIFI_AUTH_OPEN;  // Deafult to Open auth mode in case not specified
 
-                    _parsemac(lineptr+4, scan_result[ap_num].bssid);    // Get Mac Addr and convert ASCII to 6-byte format
+                    _parsemac(lineptr+4, scanstore.apdata[ap_num].bssid);    // Get Mac Addr and convert ASCII to 6-byte format
                 }
             }
 
@@ -890,13 +1254,13 @@ uint16_t iot_bsp_wifi_get_scan_result(iot_wifi_scan_result_t * scan_result)
                 lineptr = strstr(data,"\t\t * primary channel:");
                 if (lineptr)
                                                                     // Found Wifi Channel
-                    scan_result[ap_num].freq = _getnumeric(2,lineptr+22);
+                    scanstore.apdata[ap_num].freq = _getnumeric(2,lineptr+22);
 
                 else {
                     lineptr = strstr(data,"\tsignal:");
                     if (lineptr)
                                                                     // Found Wifi Signal Level (RSSI)
-                        scan_result[ap_num].rssi = _getnumeric(6,lineptr+9);
+                        scanstore.apdata[ap_num].rssi = _getnumeric(6,lineptr+9);
 
                     else {
                         lineptr = strstr(data,"\tSSID:");
@@ -909,7 +1273,7 @@ uint16_t iot_bsp_wifi_get_scan_result(iot_wifi_scan_result_t * scan_result)
                             }
                             tmpbuf[i] = 0;
 
-                            strcpy((char*)scan_result[ap_num].ssid, tmpbuf);
+                            strcpy((char*)scanstore.apdata[ap_num].ssid, tmpbuf);
 
                         }
                         else {
@@ -917,27 +1281,27 @@ uint16_t iot_bsp_wifi_get_scan_result(iot_wifi_scan_result_t * scan_result)
                             if (lineptr) {
 
                                 if (strstr(lineptr,"CCMP TKIP"))
-                                    scan_result[ap_num].authmode = IOT_WIFI_AUTH_WPA_WPA2_PSK;
+                                    scanstore.apdata[ap_num].authmode = IOT_WIFI_AUTH_WPA_WPA2_PSK;
 
                                 else
 
                                     if (strstr(lineptr,"TKIP CCMP"))
-                                        scan_result[ap_num].authmode = IOT_WIFI_AUTH_WPA_WPA2_PSK;
+                                        scanstore.apdata[ap_num].authmode = IOT_WIFI_AUTH_WPA_WPA2_PSK;
 
                                     else
 
                                         if (strstr(lineptr,"CCMP"))
-                                            scan_result[ap_num].authmode = IOT_WIFI_AUTH_WPA2_PSK;
+                                            scanstore.apdata[ap_num].authmode = IOT_WIFI_AUTH_WPA2_PSK;
 
                                         else
 
                                             if (strstr(lineptr,"TKIP"))
-                                                scan_result[ap_num].authmode = IOT_WIFI_AUTH_WPA_PSK;
+                                                scanstore.apdata[ap_num].authmode = IOT_WIFI_AUTH_WPA_PSK;
 
                                             else
 
                                                 if (strstr(lineptr,"WEP"))
-                                                    scan_result[ap_num].authmode = IOT_WIFI_AUTH_WEP;   //Need to test this
+                                                    scanstore.apdata[ap_num].authmode = IOT_WIFI_AUTH_WEP;   //Need to test this
 
                             }
                         }
@@ -945,11 +1309,17 @@ uint16_t iot_bsp_wifi_get_scan_result(iot_wifi_scan_result_t * scan_result)
                 }
             }
         }
+        ferr = ferror(pf);
+        if (ferr) {
+            errnum = errno;
+            IOT_ERROR("[rpi] Error reading scan results; ferror=%d, errno=%d",ferr,errnum);
+        }
         pclose(pf);
 
     } else
         IOT_ERROR("[rpi] Failed to issue iw scan command");
 
+    scanstore.apcount = ap_num+1;
 
     return (ap_num+1);
 }
@@ -969,7 +1339,16 @@ int _getnumeric(int maxdigits, char *text) {
 
 }
 
+/*******************************************************************************************
+    Required BSP fuction: iot_bsp_wifi_get_mac()
 
+    Purpose:    Discover and return this device's mac address
+
+    Input:      mac address structure (iot_mac)
+
+    Output:     return IOT_ERROR_ value (IOT_ERROR_NONE if no errors) + filled-in wifi_mac
+
+*******************************************************************************************/
 iot_error_t iot_bsp_wifi_get_mac(struct iot_mac *wifi_mac)  {
 
     const int maxdatasize = 1200;
@@ -1009,7 +1388,16 @@ iot_error_t iot_bsp_wifi_get_mac(struct iot_mac *wifi_mac)  {
 
 }
 
+/*******************************************************************************************
+    Required BSP fuction: iot_bsp_wifi_get_freq()
 
+    Purpose:    Determine wireless frequency in use by device
+
+    Input:      none
+
+    Output:     IOT_WIFI_FREQ_2_4G_ONLY (only valid value at this time; 5 GHz not supported)
+
+*******************************************************************************************/
 iot_wifi_freq_t iot_bsp_wifi_get_freq(void)  {
 
     return IOT_WIFI_FREQ_2_4G_ONLY;
