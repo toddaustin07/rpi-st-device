@@ -45,9 +45,9 @@ devexistsflag=0
 wlan0chan=0
 
 # Test config filenames
-dhcpcd=./sample.conf
-hostapd=./tsthp.conf
-dnsmasq=./dns.conf
+dhcpcd=/etc/dhcpcd.conf
+hostapd=/etc/hostapd/hostapd.conf
+dnsmasq=/etc/dnsmasq.conf
 
 # This function displays a string ($1) for ($2) # of repetitions
 disp_sep() {
@@ -185,7 +185,7 @@ echo -e "\t\t/etc/dnsmasq.conf"
 echo 
 echo -e "* Originals will be saved with 'ORIG' appended to the filename"
 echo
-echo -e "\e[33m>> Press \e[1my\e[21m to continue or \e[1mq\e[21m to quit\e[39m"
+echo -e "\e[33m>> Press \e[1my\e[22m to continue or \e[1mq\e[22m to quit\e[39m"
 disp_sep "=" 62
 
 keyin=""
@@ -207,9 +207,9 @@ echo -e "\e[33mInstalling/updating dnsmasq...\e[0m"
 echo
 apt install dnsmasq
 echo
-echo -e "\e[33mSoftware installs \e[1mCOMPLETE\e[0m"
+echo -e "\e[33mSoftware updates \e[1mCOMPLETE\e[0m"
 echo
-echo -e "\e[33mDisabling auto-start for these new services...\e[0m"
+echo -en "\e[33mDisabling auto-start for these new services...\e[0m"
 update-rc.d hostapd disable
 update-rc.d dnsmasq disable
 echo -e "\e[33m\e[1mCOMPLETE\e[0m" 
@@ -318,7 +318,7 @@ while [ "$getinput" == "y" ]
          then
           if [ "$dev" != "${dhcp_array_dev[$found]}" ]
            then
-            echo -e "\t\e[91m** IP already used in dhcpcd.conf by: \e[1m${dhcp_array_dev[$found]}\e[21m"
+            echo -e "\t\e[91m** IP already used in dhcpcd.conf by: \e[1m${dhcp_array_dev[$found]}\e[22m"
             addr="$def_addr"
             ipOK="no"
           fi
@@ -496,7 +496,7 @@ while [ "$getinput" == "y" ]
   echo -e "\t     Channel: \e[96m$ch\e[0m"
   echo -e "\t     Country: \e[96m$cc\e[0m"
   echo
-  echo -en "\e[33m  >> Press \e[1my\e[21m to accept & continue, \e[1mn\e[21m to re-enter, or \e[1mq\e[21m to quit\e[0m"
+  echo -en "\e[33m  >> Press \e[1my\e[22m to accept & continue, \e[1mn\e[22m to re-enter, or \e[1mq\e[22m to quit\e[0m"
 
   keyin=""
   while [[ "$keyin" != "y" && "$keyin" != "n"  && "$keyin" != "q" ]]
@@ -550,13 +550,13 @@ if [ "$keyin" == "y" ]
   disp_sep "- " 32
   echo -en "\n\e[33mInstalling default config files...\e[0m"
   #mv /etc/hostapd/hostapd.conf /etc/hostapd/hostapd.ORIGconf
-  #cp ~/rpi-st-device/RPIhostapd.conf /etc/hostapd/hostapd.conf
-  #mv /etc/dnsmasq.conf /etc/dnsmasq.ORIGconf
-  #cp ~/rpi-st-device/RPIdnsmasq.conf /etc/dnsmasq.conf
+  cp RPIhostapd.conf /etc/hostapd/hostapd.conf
+  mv /etc/dnsmasq.conf /etc/dnsmasq.ORIGconf
+  cp RPIdnsmasq.conf /etc/dnsmasq.conf
   echo -e "\e[33m\e[1mCOMPLETE\e[0m"
   echo
   echo -en "\e[33mUpdating /etc/dhcpcd.conf...\e[0m"
-  #cp /etc/dhcpcd.conf /etc/dhcpcd.ORIGconf
+  cp /etc/dhcpcd.conf /etc/dhcpcd.ORIGconf
 
   # Check to see if there is already an entry in the file for this dev
   line=$(sed -n "/interface $dev/=" "$dhcpcd")
@@ -637,7 +637,7 @@ if [ "$keyin" == "y" ]
   disp_sep "-" 60
   echo -e "\e[32m"
   disp_sep "*" 25
-  echo -e "\e[21mCONFIGURATION IS ALL DONE"
+  echo -e "\e[22mCONFIGURATION IS ALL DONE"
   disp_sep "*" 25
   echo
   echo -en "\n\e[33m>> Restart networking service now? (\e[1my/n\e[0m)"
@@ -652,14 +652,14 @@ if [ "$keyin" == "y" ]
   if [ "$keyin" == "y" ]
    then
     echo
-    echo systemctl stop networking
-    echo systemctl start networking
+    systemctl stop networking
+    systemctl start networking
     echo -e "\n\e[33mNetwork services \e[1mrestarted\e[0m"
 
     disp_sep "-" 60
     keyin=""
     echo
-    echo -en "\e[33m>> Would you like to start hostapd now for testing? (\e[1my/n\e[21m)"
+    echo -en "\e[33m>> Would you like to start hostapd now for testing? (\e[1my/n\e[22m)"
     while [[ "$keyin" != "y" && "$keyin" != "n" ]]
      do
       read -rsn1 keyin
@@ -668,9 +668,9 @@ if [ "$keyin" == "y" ]
     if [ "$keyin" == "y" ]
      then
       echo
-      echo -e "\e[39m  * Starting hostapd; \e[1mCtrl-c\e[21m to exit out when done *"
+      echo -e "\e[39m  * Starting hostapd; \e[1mCtrl-c\e[22m to exit out when done *"
       echo
-      echo lxterminal -e /usr/sbin/hostapd /etc/hostapd/hostapd.conf &
+      lxterminal -e /usr/sbin/hostapd /etc/hostapd/hostapd.conf &
     fi
 
    else
