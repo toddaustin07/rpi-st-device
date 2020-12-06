@@ -1,13 +1,18 @@
 #!/bin/bash
+curdir=$(pwd)
 
 cd ~/st-device-sdk-c
-mv src/port/bsp/posix/iot_bsp_wifi_posix.c src/port/bsp/posix/iot_bsp_wifi_posix.ORIGc
+if [ ! -f "src/port/bsp/posix/iot_bsp_wifi_posix.ORIGc" ]; then
+  mv src/port/bsp/posix/iot_bsp_wifi_posix.c src/port/bsp/posix/iot_bsp_wifi_posix.ORIGc
+fi
 cp ~/rpi-st-device/iot_bsp_wifi_rpi.c src/port/bsp/posix/iot_bsp_wifi_posix.c
-mv Makefile MakefileORIG
+if [ ! -f "MakefileORIG" ]; then mv Makefile MakefileORIG; fi
 cp ~/rpi-st-device/RPIMakefile Makefile
-mv stdkconfig stdkconfigORIG
+if [ ! -f "stdconfigORIG" ]; then mv stdkconfig stdkconfigORIG; fi
 cp ~/rpi-st-device/RPIstdkconfig stdkconfig
 
 cp ~/rpi-st-device/softapstart ~/st-device-sdk-c/example/softapstart
 cp ~/rpi-st-device/softapstop ~/st-device-sdk-c/example/softapstop
+
+cd "$curdir"
 

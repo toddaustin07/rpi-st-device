@@ -29,8 +29,9 @@ With thanks to Kwang-Hui of Samsung who patiently answered my many questions dur
 #define RPICONFFILE "RPISetup.conf"
 #define DEFAULTDIR "./"
 #define SOFTAPCONFFILE "/etc/hostapd/hostapd.conf"
-#define SOFTAPSTART "bash ./softapstart"
-#define SOFTAPSTOP "bash ./softapstop"
+#define SOFTAPCONTROLDIR "~/rpi-st-device/"
+#define SOFTAPSTARTFILE "softapstart"
+#define SOFTAPSTOPFILE  "softapstop"
 
 #define configtag_ETH "USE_ETHERNET"
 #define configtag_AP "AP_SHUTDOWN"
@@ -67,6 +68,7 @@ int _setupHostapd(char*ssid, char *password, char *iface);
 int _updateHfile(char *fname, char *ssid,char *password, char*iface);
 int _switchSSID(char *dev, char *ssid);
 bool _checkfortestdevfile();
+bool _checksoftapcontrol(char *dir);
 
 /** DEFINE GLOBAL STATIC VARIABLES **/
 
@@ -85,6 +87,8 @@ static char PHYSWIFIDEV[5] = "phy0";
 static char wifi_sta_dev[MAXDEVNAMESIZE+1] = "";
 static char wifi_ap_dev[MAXDEVNAMESIZE+1] = "";
 static char eth_dev[MAXDEVNAMESIZE+1] = "";
+static char SOFTAPSTART[60] = "";
+static char SOFTAPSTOP[60] = "";
 
 static int WIFI_INITIALIZED = false;
 
@@ -154,6 +158,10 @@ iot_error_t iot_bsp_wifi_init()
             return IOT_ERROR_NET_INVALID_INTERFACE;
         }
 
+		if (!_checksoftapcontrol(SOFTAPCONTROLDIR)) {		// Make sure SoftAP control scripts are present
+			IOT_ERROR("Missing SoftAP control scripts");
+			return IOT_ERROR_CONN_OPERATE_FAIL;
+        }
     }
 
 	WIFI_INITIALIZED = true;
@@ -205,7 +213,7 @@ iot_error_t _getrpiconf(char *currdir) {
                             Ethernet = false;
 
                     }
-                } else
+                } else {
                     if ((textptr = strstr(readline,configtag_AP))) {
 
 
@@ -218,7 +226,7 @@ iot_error_t _getrpiconf(char *currdir) {
                                 ManageAP = false;
                         }
 
-                    } else
+                    } else {
 
                         if ((textptr = strstr(readline,configtag_devSTA))) {
 
@@ -227,7 +235,7 @@ iot_error_t _getrpiconf(char *currdir) {
                                 strcpy(wifi_sta_dev,parmstr);
 
                         }
-                        else
+                        else {
 
                             if ((textptr = strstr(readline,configtag_devAP))) {
 
@@ -235,7 +243,7 @@ iot_error_t _getrpiconf(char *currdir) {
 
                                     strcpy(wifi_ap_dev,parmstr);
                             }
-                            else
+                            else {
                                 if ((textptr = strstr(readline,configtag_devETH))) {
 
                                     if(_parseconfparm(parmstr,textptr))
@@ -244,7 +252,10 @@ iot_error_t _getrpiconf(char *currdir) {
 
                                 }
 
-
+                            }
+                        }
+                    }
+                }
             }
         }
         fclose(pf);
@@ -493,6 +504,83 @@ int _initDevNames() {
     }
 
     return 1;
+
+}
+
+bool _checksoftapcontrol(char *dir) {
+
+	FILE *pf;
+	char filename[60];
+	int okflag=0;
+	int errnum;
+
+	// Check for Start script file in both given dir and current dir
+
+	strcpy(filename,dir);
+	strcat(filename,SOFTAPSTARTFILE);
+	pf = fopen(filename,"r");
+    if (pf) {
+		fclose(pf);
+		strcpy(SOFTAPSTART,filename);
+        okflag++;
+    } else {
+
+        errnum=errno;
+		if (errnum == ENOENT) {
+	 		strcpy(filename,"./");
+			strcat(filename,SOFTAPSTARTFILE);
+			pf = fopen(filename,"r");
+			if (pf) {
+				fclose(pf);
+				strcpy(SOFTAPSTART,filename);
+				okflag++;
+			} else {
+
+				errnum=errno;
+				if (errnum == ENOENT)
+					IOT_ERROR("[rpi] SoftAP start script not found");
+				else
+					IOT_ERROR("[rpi] Can't validate SoftAP start script");
+			}
+		} else
+			IOT_ERROR("[rpi] Can't validate SoftAP start script");
+	}
+
+    // Check for Stop script file in both given dir and current dir
+
+	strcpy(filename,dir);
+	strcat(filename,SOFTAPSTOPFILE);
+	pf = fopen(filename,"r");
+	if (pf) {
+		fclose(pf);
+		strcpy(SOFTAPSTOP,filename);
+		okflag++;
+	} else {
+
+		errnum=errno;
+		if (errnum == ENOENT) {
+			strcpy(filename,"./");
+			strcat(filename,SOFTAPSTOPFILE);
+			pf = fopen(filename,"r");
+			if (pf) {
+				fclose(pf);
+				strcpy(SOFTAPSTOP,filename);
+				okflag++;
+			} else {
+				errnum=errno;
+				if (errnum == ENOENT)
+					IOT_ERROR("[rpi] SoftAP stop script not found");
+				else
+					IOT_ERROR("[rpi] Can't validate SoftAP stop script");
+			}
+		} else
+			IOT_ERROR("[rpi] Can't validate SoftAP stop script");
+	}
+
+    if (okflag == 2)
+        return true;
+    else
+        return false;
 
 }
 
@@ -912,15 +1000,17 @@ int _SoftAPControl(char *cmd) {
     int errnum;
 
 
+	strcpy(command,"bash ");
     if (strcmp(cmd,"start") == 0)
-        strcpy(command,SOFTAPSTART);
+        strcat(command,SOFTAPSTART);
 
-    else
+    else {
         if (strcmp(cmd,"stop") == 0)
-            strcpy(command, SOFTAPSTOP);
+			strcat(command, SOFTAPSTOP);
 
         else
             return 0;
+	}
 
     pf = popen(command,"r");
 
@@ -928,7 +1018,7 @@ int _SoftAPControl(char *cmd) {
 
         errnum = errno;
         if (errnum == ENOENT)
-            IOT_ERROR("[rpi] Missing Service %s service control script in current directory",cmd);
+            IOT_ERROR("[rpi] Missing Service %s service control script",cmd);
         else
             IOT_ERROR("[rpi] File open error %d on %s service control script",errnum,cmd);
 
@@ -937,7 +1027,7 @@ int _SoftAPControl(char *cmd) {
 
     pclose(pf);
 
-    if (strcmp(command,SOFTAPSTART) == 0)
+    if (strcmp(cmd,"start") == 0)
         AP_ON = true;
     else
         AP_ON = false;

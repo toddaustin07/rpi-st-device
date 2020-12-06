@@ -47,6 +47,7 @@ wlan0chan=0
 # Test config filenames
 dhcpcd=/etc/dhcpcd.conf
 hostapd=/etc/hostapd/hostapd.conf
+hostapdconf=/etc/default/hostapd
 dnsmasq=/etc/dnsmasq.conf
 
 # This function displays a string ($1) for ($2) # of repetitions
@@ -212,7 +213,17 @@ echo
 echo -en "\e[33mDisabling auto-start for these new services...\e[0m"
 update-rc.d hostapd disable
 update-rc.d dnsmasq disable
-echo -e "\e[33m\e[1mCOMPLETE\e[0m" 
+
+# Set hostapd config location
+
+sed -i "/DAEMON_CONF=/c\\DAEMON_CONF=$hostapd" "$hostapdconf"
+if [ $? -ne 0 ]
+ then
+  echo -e "\n\e[91mError setting DAEMON_CONF for hostapd\n\e[0m"
+  exit 1
+fi
+
+echo -e "\e[33m\e[1mCOMPLETE\e[0m"
 
 getinput="y"
 while [ "$getinput" == "y" ]
@@ -549,9 +560,11 @@ if [ "$keyin" == "y" ]
   echo
   disp_sep "- " 32
   echo -en "\n\e[33mInstalling default config files...\e[0m"
-  #mv /etc/hostapd/hostapd.conf /etc/hostapd/hostapd.ORIGconf
   cp RPIhostapd.conf /etc/hostapd/hostapd.conf
-  mv /etc/dnsmasq.conf /etc/dnsmasq.ORIGconf
+  if [ ! -f "/etc/dnsmasq.ORIGconf" ]
+   then
+    mv /etc/dnsmasq.conf /etc/dnsmasq.ORIGconf
+  fi
   cp RPIdnsmasq.conf /etc/dnsmasq.conf
   echo -e "\e[33m\e[1mCOMPLETE\e[0m"
   echo
@@ -640,7 +653,34 @@ if [ "$keyin" == "y" ]
   echo -e "\e[22mCONFIGURATION IS ALL DONE"
   disp_sep "*" 25
   echo
-  echo -en "\n\e[33m>> Restart networking service now? (\e[1my/n\e[0m)"
+
+  if [ $devexistsflag -eq 0 ]
+   then
+    echo -en "\n\e[33m>> Restart networking service now? (\e[1my/n\e[0m)"
+
+    keyin=""
+    while [[ "$keyin" != "y" && "$keyin" != "n" ]]
+     do
+      read -rsn1 keyin
+     done
+    echo
+
+    if [ "$keyin" == "y" ]
+     then
+      echo
+      systemctl stop networking
+      systemctl start networking
+      echo -e "\n\e[33mNetwork services \e[1mrestarted\e[0m"
+
+      disp_sep "-" 60
+      keyin=""
+      echo
+     else
+      echo -e "\t\e[0mOK, reboot later to ensure $dev is operational\n"
+    fi
+  fi
+
+  echo -en "\e[33m>> Would you like to start hostapd now for testing? (\e[1my/n\e[22m)"
 
   keyin=""
   while [[ "$keyin" != "y" && "$keyin" != "n" ]]
@@ -648,34 +688,14 @@ if [ "$keyin" == "y" ]
     read -rsn1 keyin
    done
   echo
-
   if [ "$keyin" == "y" ]
    then
     echo
-    systemctl stop networking
-    systemctl start networking
-    echo -e "\n\e[33mNetwork services \e[1mrestarted\e[0m"
-
-    disp_sep "-" 60
-    keyin=""
+    echo -e "\e[39m  * Starting hostapd; \e[1mCtrl-c\e[22m to exit out when done *"
     echo
-    echo -en "\e[33m>> Would you like to start hostapd now for testing? (\e[1my/n\e[22m)"
-    while [[ "$keyin" != "y" && "$keyin" != "n" ]]
-     do
-      read -rsn1 keyin
-     done
-    echo
-    if [ "$keyin" == "y" ]
-     then
-      echo
-      echo -e "\e[39m  * Starting hostapd; \e[1mCtrl-c\e[22m to exit out when done *"
-      echo
-      lxterminal -e /usr/sbin/hostapd /etc/hostapd/hostapd.conf &
-    fi
-
-   else
-    echo -e "\n\e[0mOK, reboot later to ensure $dev is operational"
+    lxterminal -e /usr/sbin/hostapd /etc/hostapd/hostapd.conf &
   fi
+
 fi
 
 echo -e "\n\n\e[1m*** DONE ***\e[0m\n"
