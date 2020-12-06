@@ -89,6 +89,7 @@ static char wifi_ap_dev[MAXDEVNAMESIZE+1] = "";
 static char eth_dev[MAXDEVNAMESIZE+1] = "";
 static char SOFTAPSTART[60] = "";
 static char SOFTAPSTOP[60] = "";
+static uint8_t wifimacaddr[7];
 
 static int WIFI_INITIALIZED = false;
 
@@ -352,6 +353,7 @@ int _initDevNames() {
     char devname[MAXDEVNAMESIZE+1];
     char devtype[10];
     char command[40];
+    uint8_t tmpmac[7];
     bool found = false;
     int i;
     char *textptr;
@@ -468,13 +470,21 @@ int _initDevNames() {
                         }
                         devtype[i] = '\0';
 
-                        if (strcmp(devtype,"managed") == 0)
+                        if (strcmp(devtype,"managed") == 0) {
                             strcpy(wifi_sta_dev, devname);
+                            memcpy(wifimacaddr,tmpmac,7);
+                        }
                         else {
-                            if (strcmp(devtype,"AP") == 0)
+                            if (strcmp(devtype,"AP") == 0) {
                                 strcpy(wifi_ap_dev,devname);
+                            }
                         }
                         found = true;
+
+                    } else {
+
+                        if ((textptr = strstr(data,"addr")))
+                            _parsemac(textptr+5,tmpmac);        // grab the mac address
 
                     }
 
@@ -1440,15 +1450,18 @@ int _getnumeric(int maxdigits, char *text) {
 
 *******************************************************************************************/
 iot_error_t iot_bsp_wifi_get_mac(struct iot_mac *wifi_mac)  {
-
+/*
     const int maxdatasize = 1200;
-    #define LINUXIFCONFIG "ifconfig"
+    #define LINUXIFCONFIG "iw dev"
     FILE *pf;
     char command[sizeof(LINUXIFCONFIG)+1];
     char data[maxdatasize];
     char *lineptr, *sublineptr;
-
+*/
     IOT_INFO("[rpi] Mac address requested");
+
+    memcpy(wifi_mac->addr,wifimacaddr,7);
+ /*
     // Execute system command to get wifi scan list
     sprintf(command,LINUXIFCONFIG);
     pf = popen(command,"r");
@@ -1475,7 +1488,9 @@ iot_error_t iot_bsp_wifi_get_mac(struct iot_mac *wifi_mac)  {
         IOT_ERROR("[rpi] Failed to execute ifconfig command");
 
     return IOT_ERROR_CONN_OPERATE_FAIL;
+*/
 
+    return IOT_ERROR_NONE;
 }
 
 /*******************************************************************************************

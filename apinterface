@@ -1,0 +1,6 @@
+allow-hotplug wlap0
+auto wlap0
+iface wlap0 inet static
+	address 192.168.2.1
+	netmask 255.255.255.0
+
