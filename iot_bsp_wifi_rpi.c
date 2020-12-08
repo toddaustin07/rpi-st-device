@@ -8,7 +8,7 @@ Description:
 
 
 Author:     Todd Austin toddaustin07@yahoo.com
-Date:       November 2020
+Date:       December 2020
 
 With thanks to Kwang-Hui of Samsung who patiently answered my many questions during development.
 
@@ -89,7 +89,8 @@ static char wifi_ap_dev[MAXDEVNAMESIZE+1] = "";
 static char eth_dev[MAXDEVNAMESIZE+1] = "";
 static char SOFTAPSTART[60] = "";
 static char SOFTAPSTOP[60] = "";
-static uint8_t wifimacaddr[7];
+static uint8_t wifimacaddr[IOT_WIFI_MAX_BSSID_LEN];
+static uint8_t ethmacaddr[IOT_WIFI_MAX_BSSID_LEN];
 
 static int WIFI_INITIALIZED = false;
 
@@ -115,7 +116,7 @@ iot_error_t iot_bsp_wifi_init()
 
  //       _getrpiconf(DEFAULTDIR);                            // read config file
 
-        if (!_initDevNames()) {
+        if (!_initDevNames()) {                     // initialize device names & info
             IOT_ERROR("[rpi] Failure initializng interface device names");
             return IOT_ERROR_CONN_OPERATE_FAIL;
         }
@@ -353,7 +354,7 @@ int _initDevNames() {
     char devname[MAXDEVNAMESIZE+1];
     char devtype[10];
     char command[40];
-    uint8_t tmpmac[7];
+    uint8_t tmpmac[IOT_WIFI_MAX_BSSID_LEN];
     bool found = false;
     int i;
     char *textptr;
@@ -415,6 +416,26 @@ int _initDevNames() {
                 } else {
                     IOT_ERROR("[rpi] Could not check Ethernet status %s",devname);
                     Ethernet = false;
+                }
+
+                // Now get the Ethernet mac address
+
+                if (Ethernet) {
+                    sprintf(command,"cat /sys/class/net/%s/address",devname);
+                    pf = popen(command,"r");
+                    if (pf)  {
+
+                        if(fgets(data,maxdatasize,pf)) {
+                            pclose(pf);
+                            _parsemac(data,ethmacaddr);
+
+                        } else {
+                            IOT_ERROR("[rpi] Could not read Ethernet mac address %s",devname);
+                            pclose(pf);
+                        }
+                    } else {
+                        IOT_ERROR("[rpi] Could not check Ethernet mac address %s",devname);
+                    }
                 }
             }
 
@@ -801,7 +822,7 @@ iot_error_t iot_bsp_wifi_set_mode(iot_wifi_conf *conf)
         }
 
         if (!Dualmode)
-                usleep(SOFTAPWAITTIME);                         // Swithing wlan0; give it some time to transition
+                usleep(SOFTAPWAITTIME);                         // Switching wlan0; give it some time to transition
 
         if(_enableWifi(wifi_sta_dev))  {                       // Ensure wifi station is operational
 
@@ -1450,45 +1471,25 @@ int _getnumeric(int maxdigits, char *text) {
 
 *******************************************************************************************/
 iot_error_t iot_bsp_wifi_get_mac(struct iot_mac *wifi_mac)  {
-/*
-    const int maxdatasize = 1200;
-    #define LINUXIFCONFIG "iw dev"
-    FILE *pf;
-    char command[sizeof(LINUXIFCONFIG)+1];
-    char data[maxdatasize];
-    char *lineptr, *sublineptr;
-*/
+
+    char txt[18];
+
     IOT_INFO("[rpi] Mac address requested");
 
-    memcpy(wifi_mac->addr,wifimacaddr,7);
- /*
-    // Execute system command to get wifi scan list
-    sprintf(command,LINUXIFCONFIG);
-    pf = popen(command,"r");
+    if (Ethernet)
+        memcpy(wifi_mac->addr,ethmacaddr,IOT_WIFI_MAX_BSSID_LEN);
 
-    if (pf) {
-    // Read each line output from system command
-        while (fgets(data,maxdatasize,pf)) {
-            //printf("\n%s",data);
-            lineptr = strstr(data,wifi_sta_dev);
+    else
+        memcpy(wifi_mac->addr,wifimacaddr,IOT_WIFI_MAX_BSSID_LEN);
 
-            if (lineptr) {
 
-                sublineptr = strstr(lineptr, "HWaddr");
-
-                if (sublineptr) {
-                    _parsemac(sublineptr+7, wifi_mac->addr);
-                    pclose(pf);
-                    return IOT_ERROR_NONE;
-                }
-            }
-        }
-        pclose(pf);
-    } else
-        IOT_ERROR("[rpi] Failed to execute ifconfig command");
-
-    return IOT_ERROR_CONN_OPERATE_FAIL;
-*/
+    sprintf(txt,"%x:%x:%x:%x:%x:%x", wifi_mac->addr[0], \
+                                            wifi_mac->addr[1], \
+                                            wifi_mac->addr[2], \
+                                            wifi_mac->addr[3], \
+                                            wifi_mac->addr[4], \
+                                            wifi_mac->addr[5]);
+    IOT_INFO("[rpi] Mac=%s",txt);
 
     return IOT_ERROR_NONE;
 }
@@ -1516,7 +1517,6 @@ void _parsemac(char *textptr, uint8_t *hexbuf) {
     *(hexbuf+3) = _htoi(textptr + 9);
     *(hexbuf+4) = _htoi(textptr + 12);
     *(hexbuf+5) = _htoi(textptr + 15);
-    *(hexbuf+6) = 0;
 
     return;
 }

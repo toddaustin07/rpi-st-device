@@ -1,4 +1,0 @@
-!#/bin/bash
-
-sudo iw phy phy0 interface add wlap0 type __ap
-

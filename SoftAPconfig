@@ -18,6 +18,9 @@ adrange=$3
 ch=$4
 cc=$5
 
+rpimodel=""
+osrelease=""
+
 ipOK="no"
 ip1=0
 ip2=0
@@ -37,6 +40,8 @@ def_adrange="192.168.2.2,192.168.2.10"
 def_ch="1"
 def_cc="US"
 
+currdir="./"
+modellist=("a02082" "a22082" "a32082" "a020d3" "a03111" "b03111" "c03111")
 ipcount=0
 declare -a dhcp_array_dev
 declare -a dhcp_array_ip
@@ -45,7 +50,7 @@ devexistsflag=0
 wlan0chan=0
 
 # Test config filenames
-dhcpcd=/etc/dhcpcd.conf
+dhcpcd=/etc/network/interfaces.d/ap
 hostapd=/etc/hostapd/hostapd.conf
 hostapdconf=/etc/default/hostapd
 dnsmasq=/etc/dnsmasq.conf
@@ -173,6 +178,33 @@ getdhcp() {
 ######################################################################
 [ $UID -eq 0 ] || { echo "This script must be run as root."; exit 1;}
 
+currdir=$(pwd)
+if [[ "$currdir"  != *"rpi-st-device"* ]]
+ then
+  echo -e "Please run this script from the rpi-st-device directory"
+  exit 1
+fi
+
+# Check what hardware we're running on
+
+rpimodel=$(cat /proc/cpuinfo | grep "Revision" | cut -f2 -d" ")
+if [[ ! "${modellist[@]}" =~ "${rpimodel}" ]]
+ then
+  echo -e "\e[91m\nThis Raspberry Pi model not tested or supported\n\e[0m"
+  exit 1
+fi
+
+# Check what OS version we're running on
+
+osrelease=$(cat /etc/os-release | grep "VERSION_ID" | cut -f2 -d"=")
+osrelease="${osrelease%\"}"
+osrelease="${osrelease#\"}"
+if [ $osrelease -le 8 ]
+ then
+  echo -e "\e\91m\nYour OS version is too old; must be Version 8 or later\n\e[0m"
+  exit 1
+fi
+
 
 disp_sep "=" 62
 echo 
@@ -213,6 +245,27 @@ echo
 echo -en "\e[33mDisabling auto-start for these new services...\e[0m"
 update-rc.d hostapd disable
 update-rc.d dnsmasq disable
+
+# Copy over the initial default config files
+
+if [ -f "/etc/hostapd/hostapd.conf" ]
+ then
+  cp /etc/hostapd/hostapd.conf /etc/hostapd/hostapd.SAVEDconf
+fi
+cp $currdir/RPIhostapd.conf /etc/hostapd/hostapd.conf
+
+
+if [ -f "/etc/dnsmasq.conf" ]
+ then
+  if [ -f "etc/dnsmasq.ORIGconf" ]
+   then
+    cp /etc/dnsmasq.conf /etc/dnsmasq.ORIGconf
+   else
+    cp /etc/dnsmasq.conf /etc/dnsmasq.SAVEDconf
+  fi
+fi
+cp $currdir/RPIdnsmasq.conf /etc/dnsmasq.conf
+
 
 # Set hostapd config location
 
@@ -531,6 +584,8 @@ if [ "$keyin" == "y" ]
 
   disp_sep "- " 32
 
+  # Create new AP device if doesn't already exist
+
   if [ $devexistsflag -eq 0 ]
    then
     echo -e "\n\e[33mCreating new wifi device $dev...\e[0m"
@@ -553,106 +608,120 @@ if [ "$keyin" == "y" ]
       fi
       echo
     fi
+
    else
     echo -e "\n\e[0mINFO: not creating device $dev because it already exists\n"
+
   fi
+
+  # Set up DHCPCD Network config file
+
+  echo -en "\e[33mUpdating network interface file...\e[0m"
+
+  if [ -f "$dhcpcd" ]; then
+   cp "$dhcpcd" $currdir/SAVED_ap; fi
+  cp $currdir/apinterface "$dhcpcd"
+
+  sed -i "/^allow-hotplug/c\\allow-hotplug $dev" "$dhcpcd"
+  errnum=$?
+  if [ $errnum -gt 0 ]
+  then
+   echo -e "\n\n\e[91m** Unexpected sed error# $errnum: Could not update $dhcpcd\e[0m\n"
+   exit 1
+  fi
+
+  sed -i "/^auto/c\\auto $dev" "$dhcpcd"
+  sed -i "/^iface/c\\iface $dev inet static" "$dhcpcd"
+  sed -i "/address/c\\\taddress $addr" "$dhcpcd"
+  echo -e "\e[1mCOMPLETE\e[0m"
+
+
+  # If Stretch or Buster OS, then setup additional files to make SoftAP work
+
+  if [ $osrelease -gt 8 ]
+   then
+    echo
+    disp_sep "- " 32
+    echo -en "\n\e[33mEnabling concurrent $dev and wlan0 operation...\e[0m"
+
+    # Set up udev file
+
+    if [ -f "/etc/udev/rules.d/90-wireless.rules" ]
+     then
+      if [ -f "$currdir/ORIG_90-wireless.rules" ]
+       then
+        cp /etc/udev/rules.d/90-wireless.rules $currdir/SAVED_90-wireless.rules
+       else
+        cp /etc/udev/rules.d/90-wireless.rules $currdir/ORIG_90-wireless.rules
+      fi
+    fi
+
+    cp $currdir/90-wireless.rules /etc/udev/rules.d/90-wireless.rules
+
+    sed -i "s|RUN+=\"/sbin/iw phy %k interface add.*|RUN+=\"/sbin/iw phy %k interface add $dev type __ap\"|" /etc/udev/rules.d/90-wireless.rules
+
+    errnum=$?
+    if [ $errnum -gt 0 ]
+     then
+      echo -e "\n\e[91mCould not update udev file.  sed error # $errnum\n\e[0m"
+      exit 1
+    fi
+
+    # Now setup dhcpcd hooks for wpa supplicant
+    #   -First save existing file if exists
+
+    if [ ! -f "/lib/dhcpcd/dhcpcd-hooks/10-wpa_supplicant" ]
+     then
+      if [ -f "$currdir/ORIG_10-wpa_supplicant" ]
+       then
+        cp /lib/dhcpcd/dhcpcd-hooks/10-wpa_supplicant $currdir/SAVED_10-wpa_supplicant
+       else
+        cp /lib/dhcpcd/dhcpcd-hooks/10-wpa_supplicant $currdir/ORIG_10-wpa_supplicant
+      fi
+    fi
+
+
+    #   - Setup supplicant hook file based on OS version
+
+    if [ $osrelease -eq 9 ]
+     then
+      cp $currdir/v9new_10-wpa_supplicant /lib/dhcpcd/dhcpcd-hooks/10-wpa_supplicant
+
+     else
+      if [ $osrelease -eq 10 ]
+       then
+        cp $currdir/v10new_10-wpa_supplicant /lib/dhcpcd/dhcpcd-hooks/10-wpa_supplicant
+
+      fi
+    fi
+
+    echo -e "\e[1mCOMPLETE\e[0m"
+
+  fi     #end if V9 OS or later
+
+  # Configure hostapd and dnsmasq config files
 
   echo
   disp_sep "- " 32
-  echo -en "\n\e[33mInstalling default config files...\e[0m"
-  cp RPIhostapd.conf /etc/hostapd/hostapd.conf
-  if [ ! -f "/etc/dnsmasq.ORIGconf" ]
-   then
-    mv /etc/dnsmasq.conf /etc/dnsmasq.ORIGconf
-  fi
-  cp RPIdnsmasq.conf /etc/dnsmasq.conf
-  echo -e "\e[33m\e[1mCOMPLETE\e[0m"
-  echo
-  echo -en "\e[33mUpdating /etc/dhcpcd.conf...\e[0m"
-  cp /etc/dhcpcd.conf /etc/dhcpcd.ORIGconf
+  echo -en "\n\e[33mUpdating SoftAP config files...\e[0m"
 
-  # Check to see if there is already an entry in the file for this dev
-  line=$(sed -n "/interface $dev/=" "$dhcpcd")
-
-  # If not, then append the new config lines
-  if [ -z "$line" ]
-   then
-
-    echo -e "\ninterface $dev" >> "$dhcpcd"
-    echo -e "\tstatic ip_address=$addr" >> "$dhcpcd"
-    echo -e "\tnohook wpa_supplicant" >> "$dhcpcd"
-    echo -e "\e[1m\e[33mCOMPLETE\e[0m"
-
-   # Otherwise we need to update existing entry
-   # ...first find static ip_address line for the dev
-   else
-
-    nextln=$((line+1))
-
-    result=$(grep -n "static ip_address" "$dhcpcd" | cut -f1 -d:)
-    readarray -t array <<< "$result"
-
-    i=0
-    l="${#array[@]}"
-    fflag=0
-
-    while [[ $i -lt $l && $fflag == 0 ]]
-     do
-      if [ "${array[i]}" == "$nextln" ]; then fflag=1; fi
-      i=$((i+1))
-     done
-
-    if [ $fflag -eq 1 ]
-     then
-      sed -i "$nextln""s/.*/\tstatic ip_address=$addr/" "$dhcpcd"
-      if [ $? == 0 ]
-       then
-
-         # check for duplicate IP addresses in dhcpcd.conf
-         count=$(grep -c "$addr" "$dhcpcd")
-
-         if [ $count -gt  1 ]
-          then
-           echo -e "\n\t\e[91m** You have duplicate IP addresses in dhcpcd.conf"
-           echo -e "\n\t\e[39m  Edit manually to resolve conflict"
-           echo -en "\t\e[33m   Press any key to start editor...\e[39m"
-           read -rsn1 keyin
-           nano "$dhcpcd"
-           echo
-          else
-           echo -e "\e[33m\e[1mCOMPLETE\e[0m"
-         fi
-       else
-        errnum=$?
-        echo -e "\n\n\e[91m** Unexpected sed error# $errnum: Could not update $dhcpcd\e[39m\n"
-        exit 1
-      fi
-     else
-      echo -e "\n\n\t\e[93m** Missing contents in dhcpcd.conf; please edit manually **"
-      echo -e "\n\t\e[33mPress any key to start editor\e[39m"
-      read -rsn1 keyin
-      nano "$dhcpcd"
-    fi
-  fi
-
-  echo -en "\e[33mUpdating /etc/hostapd/hostapd.conf..."
   sed -i "/^country_code/c\\country_code=$cc" "$hostapd"
   sed -i "/^interface/c\\interface=$dev" "$hostapd"
   sed -i "/^channel/c\\channel=$ch" "$hostapd"
-  echo -e "\e[1mCOMPLETE\e[0m"
 
-  echo -en "\e[33mUpdating /etc/dnsmasq.conf..."
   sed -i "/^interface/c\\interface=$dev" "$dnsmasq"
   sed -i "/^dhcp-range/c\\dhcp-range=$adrange,12h" "$dnsmasq"
-  sed -i "/^address/c\\address=/gw.wlan/$addr" "$dnsmasq"
+
   echo -e "\e[1mCOMPLETE\e[0m"
 
-  disp_sep "-" 60
+
   echo -e "\e[32m"
   disp_sep "*" 25
   echo -e "\e[22mCONFIGURATION IS ALL DONE"
   disp_sep "*" 25
   echo
+
+  # WRAP UP WITH OPTIONAL NETWORK RESTART AND HOSTAPD TEST
 
   if [ $devexistsflag -eq 0 ]
    then
@@ -693,7 +762,7 @@ if [ "$keyin" == "y" ]
     echo
     echo -e "\e[39m  * Starting hostapd; \e[1mCtrl-c\e[22m to exit out when done *"
     echo
-    lxterminal -e /usr/sbin/hostapd /etc/hostapd/hostapd.conf &
+    /usr/sbin/hostapd /etc/hostapd/hostapd.conf &
   fi
 
 fi
