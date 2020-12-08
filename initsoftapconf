@@ -1,0 +1,20 @@
+#!/bin/bash
+
+currdir=$(pwd)
+
+if [ -f "/etc/dnsmasq.ORIGconf" ]
+ then
+  cp /etc/dnsmasq.conf /etc/dnsmasq.SAVEconf
+ else
+  cp /etc/dnsmasq.conf /etc/dnsmasq.ORIGconf
+fi
+
+if [ -f "/etc/hostapd/hostapd.conf" ]
+ then
+  cp /etc/hostapd/hostapd.conf /etc/hostapd/hostapd.SAVEconf"
+fi
+
+cp $currdir/RPIdnsmasq.conf /etc/dnsmasq.conf
+cp $currdir/RPIhostapd.conf /etc/hostapd/hostapd.conf
+
+echo "hostapd and dnsmasq config files initialized but need modification\n"
