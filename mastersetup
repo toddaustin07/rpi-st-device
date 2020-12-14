@@ -1,0 +1,658 @@
+#!/bin/bash
+
+
+# Global static variables
+rpimodel=""
+osrelease=0
+currdir=""
+stepsfile="./.stepstat"
+rpipkgdir="rpi-st-device"
+sdkpkgdir="st-device-sdk-c"
+devjsonfile="$HOME/$sdkpkgdir/example/device_info.json"
+onbjsonfile="$HOME/$sdkpkgdir/example/onboarding_config.json"
+
+todo="[to-do]"
+done="[done]"
+
+modellist=("a02082" "a22082" "a32082" "a020d3" "a03111" "b03111" "c03111")
+
+initstepst=("$todo" "$todo" "$todo" "$todo" "$todo" "$todo" "$todo" "$todo" "$todo")
+stepst=()
+dispstepst=()
+menuselect=""
+keyresp=""
+serialnum=""
+jsonvalue=""
+
+showmenu() {
+
+ local i=0
+ local instr=""
+ local numtest='^[0-9]+$'
+ local goodinput=""
+
+ for item in "${stepst[@]}"; do
+  if [ $item == $todo ]; then
+   dispstepst[i]="\e[93m$item\e[0m"
+  else
+   if [ $item == $done ]; then
+    dispstepst[i]="\e[92m$item\e[0m"
+   else
+    dispstepst[i]="\e[0m$item"
+   fi
+  fi
+  i=$((i+1))
+ done
+
+ echo -e "\e[0m"
+ echo -e "\t======================================================="
+ echo -e "\t                         \e[1m\e[97mMENU\e[0m"
+ echo -e "\t======================================================="
+ echo -e "\t 1. Verify Pi system requirements \t\t${dispstepst[0]}"
+ echo -e "\t 2. Install Pi enablement package \t\t${dispstepst[1]}"
+ echo -e "\t 3. Install software dependencies \t\t${dispstepst[2]}"
+ echo -e "\t 4. Clone Core SDK \t\t\t\t${dispstepst[3]}"
+ echo -e "\t 5. Build Core SDK \t\t\t\t${dispstepst[4]}"
+ echo -e "\t 6. Register devices in Developer Workspace \t${dispstepst[5]}"
+ echo -e "\t 7. Build Example App \t\t\t\t${dispstepst[6]}"
+ echo -e "\t 8. Configure Pi for SoftAP \t\t\t${dispstepst[7]}"
+ echo -e "\t 9. On-board example device app\t\t\t${dispstepst[8]}"
+ echo -e "\t======================================================="
+ echo -en "\n\t\e[95mEnter a step number or q to quit:\e[0m  "
+
+ goodinput="no"
+ while [ "$goodinput" == "no" ]; do
+  read instr
+
+  if [ "$instr" == "q" ]; then goodinput="yes"; fi
+
+  if [[ $instr =~ $numtest ]]; then
+    if [[ $instr -ge 1  && $instr -le 10 ]]; then goodinput="yes"; fi
+  fi
+ done
+ echo
+ menuselect=$instr
+
+}
+
+updatestatfile() {
+
+  cd "$currdir"
+
+  echo "${stepst[@]}" > $stepsfile
+  
+  if [[ "${stepst[1]} == $done" && "$currdir" != "$HOME/$rpipkgdir" ]]; then
+      cp "$stepsfile" "$HOME/$rpipkgdir"
+  fi
+
+ return 0
+}
+
+getyesno() {
+
+ local keyin=""
+
+ while [[ "$keyin" != "y" && "$keyin" != "n" ]]
+ do
+  read -rsn1 keyin
+ done
+
+ echo
+ keyresp=$keyin
+
+}
+
+getjsonitem() {
+  # Input $1=json filename, $2=item to search for; sets jsonvalue to found value  
+  filen=$1
+  srchitem=$2
+  local output
+  local jsonarray=()
+  local itemarr=()
+  local item
+  local savIFS
+  local founditem
+  local fflag=0
+    
+  output=$(cat $filen)
+  readarray jsonarray <<< $output
+  
+  for item in "${jsonarray[@]}"; do
+    if [[ "$item" == *"$srchitem"* ]]; then
+      savIFS=$IFS
+      IFS=':'
+      read -a itemarr <<< $item
+      IFS=$savIFS
+      founditem="${itemarr[1]}"
+      fflag=1
+    fi
+  done
+
+  if [ $fflag -eq 1 ]; then
+    jsonvalue=${founditem#*'"'}
+    jsonvalue=${jsonvalue%'"'*}
+    return 0
+  else
+    return 1
+  fi
+    
+}
+
+clonepkg() {
+
+  step=$1
+  URL=$2
+
+  cd $HOME
+  output=$(git clone "$URL" 2>&1)
+  errnum=$?
+  cd $currdir
+  
+  if [ $errnum -eq 0 ]
+    then
+      
+      # Confirm that the respository directory now exists
+
+      savIFS=$IFS
+      IFS='/'
+      read -a path <<< "$URL"
+
+      IFS='.'
+      read -a dname <<< "${path[4]}"
+      IFS=$savIFS
+
+      if [ -d $HOME/${dname[0]} ]; then
+        echo -e "\n\t\e[92mInstallation successful\e[0m\n"
+        stepst[step]=$done
+      else
+        echo -e "\n\t\e[91mSomething went wrong: path to package not found\e[0m\n"
+      fi
+
+    else
+      if [[ "$output" == *"already exists"* ]]
+        then
+          echo -e "\n\t\e[0mIt looks like the package is already installed\n"
+          stepst[step]=$done
+        else
+          echo -e "\n\t\e[91mgit reported error number: $errnum\n"
+          echo -e "\t$output\e[0m\n"
+      fi
+  fi
+
+  return 0
+}
+
+createqr() {
+
+  local retcode=1
+  
+  echo -e "\n\t\e[97mCreating QRCODE for your device\e[0m"
+        
+  cd "$HOME/$sdkpkgdir/tools/qrgen"
+              
+  qroutput=$(python3 stdk-qrgen.py --folder "$HOME/$sdkpkgdir/example/")
+  errnum=$?
+              
+  if [ $errnum == 0 ]; then
+    savIFS=$IFS
+    IFS=":"
+    read -a outarr <<< ${qroutput[0]}
+    IFS=$savIFS
+              
+    if [ "${outarr[0]}" == "File" ]; then
+      qrfname="${outarr[1]}"
+      qrfname=${qrfname//[[:space:]]/}
+                
+      if [ -f "$HOME/$sdkpkgdir/tools/qrgen/$qrfname" ]; then
+                
+        cp "$HOME/$sdkpkgdir/tools/qrgen/$qrfname" "$HOME/$sdkpkgdir/example/$qrfname"
+        echo -e "\t\e[92m$qrfname copied to $HOME/$sdkpkgdir/example/ directory"
+        retcode=0
+                  
+      else
+        echo -e "\n\t\e[91m$qrfname not found\e[0m"
+      fi            
+    else
+      echo -e "\n\t\e[91mUnexpected results from stdk_qrgen\e[0m"
+    fi
+  else
+    echo -e "\n\t\e[91mqrcode tool failed with error #$errnum\e[0m"
+  fi
+  
+  cd "$HOME/$rpipkgdir"
+  return $retcode
+
+}
+
+step1() {
+
+  local rpirevision
+  local rpimodel
+  local pyver
+  local pyvernum
+  local verarr
+  local savIFS
+
+  # Check what hardware we're running on
+
+  rpirevision=$(cat /proc/cpuinfo | grep "Revision" | cut -f2 -d" ")
+  if [[ ! "${modellist[@]}" =~ "${rpirevision}" ]]
+    then
+      echo -e "\n\t\e[91m\n\tThis Raspberry Pi model not tested or supported\e[0m"
+      return 1
+    else
+      rpimodel=$(cat /proc/cpuinfo | grep "Model" | cut -f2 -d":")
+      echo -e "\n\t\e[92mModel:$rpimodel... OK"
+  fi
+
+  # Check what OS version we're running on
+
+  osrelease=$(cat /etc/os-release | grep "VERSION_ID" | cut -f2 -d"=")
+  osrelease="${osrelease%\"}"
+  osrelease="${osrelease#\"}"
+  if [ $osrelease -le 8 ]
+    then
+      echo -e "\n\t\e\91m\nYour OS version is too old; must be Version 8 or later\e[0m"
+      return 1
+    else
+      rpios=$(cat /etc/os-release | grep "PRETTY_NAME" | cut -f2 -d"=")
+      echo -e "\t\e[92mO/S: $rpios... OK"
+  fi
+
+  # Check what version of Python3 is installed
+
+  pyver=$(python3 --version)
+  read -a pyvernum <<< "$pyver"
+  savIFS=$IFS
+  IFS='.'
+  read -a verarr <<< "${pyvernum[1]}"
+  IFS=$savIFS
+
+  if [ ${verarr[1]} -ge 5 ]; then
+    echo -e "\t\e[92m$pyver... OK\n\e[0m"
+  else
+    echo -e "\n\t\e\91m\nYour PythonS version is too old; must be Version 3.5 or later\e[0m"
+    return 1
+  fi
+
+  stepst[0]=$done
+  return 0
+}
+
+step2() {
+
+  echo -e "\n\t\e[97mInstalling Pi enablement package from github\n\e[0m"
+
+  clonepkg 1 "https://github.com/toddaustin07/rpi-st-device.git"
+
+  if [[ "${stepst[1]}" == "$done" && "$currdir" != "$HOME/$rpipkgdir" ]]; then
+      echo -e "\t\e[93m>> From now on, you should run this setup script from the"
+      echo -e "\t   \e[1m$HOME/$rpipkgdir\e[22m directory\e[0m"
+      echo -e "\t\e[0m>> You can continue for now"
+      cd $HOME/$rpipkgdir
+  fi
+  
+  return 0
+}
+
+step3() {
+
+  echo -e "\n\t\e[97mInstalling software dependencies - watch for errors...\n\e[0m"
+
+  bash $HOME/$rpipkgdir/installSDKdeps
+
+  echo -ne "\n\n\t\e[95mDid you encounter any errors or additional dependencies? (\e[1my/n\e[22m)"
+  getyesno
+
+  if [ $keyresp == "y" ]
+    then
+      echo -e "\n\t\e[93m>>Manually install your missing dependencies and then try again\e[0m\n"
+    else
+      stepst[2]=$done
+  fi
+
+  return 0
+}
+
+step4() {
+
+  echo -e "\n\t\e[97mCloning SmartThings Core SDK from github\n\e[0m"
+
+  clonepkg 3 "https://github.com/SmartThingsCommunity/st-device-sdk-c.git"
+
+  return 0
+}
+
+step5() {
+
+  echo -e "\n\t\e[97mBuilding SmartThings Core SDK\n\e[0m"
+ 
+  bash $HOME/$rpipkgdir/sdkbuildsetup
+  
+  cd "$HOME/$sdkpkgdir"
+  make
+  errnum=$?
+  
+  if [ $errnum -eq 0 ]; then
+    if [[ -f output/libiotcore.a ]]; then
+      echo -e "\n\t\e[92mCore SDK built: ~/st-device-sdk-c/output/libiotcore.a\e[0m\n"
+      stepst[4]=$done
+    else
+      echo -e "\n\t\e[91mSomething seems to have gone wrong.  Correct errors and retry.\e[0m\n"
+    fi  
+  else
+    echo -e "\n\t\e[91mMake reported error # $errnum. Correct errors and retry.\e[0m\n"
+  fi
+  cd "$HOME/$rpipkgdir"  
+  return 0
+}
+
+step6() {
+  
+  local cmdoutput=()
+  local errnum=0
+
+  # Save existing json files
+  
+  if [ -f "ORIG_$onbjsonfile" ]; then
+    cp "$onbjsonfile" "$onbjsonfile""_SAVED"
+  else
+    cp "$onbjsonfile" "$onbjsonfile""_ORIG"
+  fi
+
+  if [ -f "ORIG_$devjsonfile" ]; then
+    cp "$devjsonfile" "$devjsonfile""_SAVED"
+  else
+    cp "$devjsonfile" "$devjsonfile""_ORIG"
+  fi
+  
+
+  #chromium-browser community.smartthings.com/t/how-to-build-direct-connected-devices/204055 >/dev/null 2>&1 &
+  
+  echo -e "\n\t\e[97mRegister Project in Samsung SmartThings Develper Workspace\e[0m"
+  
+  echo -e "\tFollow the instructions outlined in the SmartThings Community post to set up"
+  echo -e "\tyour example device in the Developer Workspace. (displayed now in browser window)"
+  echo -e "\tBegin with section \e[1m2.1\e[22m 'Create a new project' - continuing to and including"
+  echo -e "\tsection \e[1m2.5\e[22m 'Deploy Your Device to Test'"
+  
+  echo -en "\n\t\e[95mPress any key once you have competed those steps\e[0m"
+  read -rsn1 keyin
+  echo
+  
+  echo -e "\n\t\e[97mWe will now create a new device serial number and key for your test device\e[22m"
+  echo -en "\t\e[95mPress '\e[1mc\e[22m' to continue or '\e[1ms\e[22m' to skip\e[0m"
+  
+  keyin=""
+  while [[ "$keyin" != "c" && "$keyin" != "s" ]]; do
+    read -rsn1 keyin
+  done
+  echo
+  
+  if [ "$keyin" == "c" ]; then
+  
+    echo -e "\n\t\e[0mUse the serial number and public key generated below to complete the instructions"
+    echo -e "\tin section \e[1m2.6\e[0m 'Register Test Devices'"
+  
+    cd "$HOME/$sdkpkgdir/tools/keygen"
+    #output=$(python3 stdk-keygen.py --firmware switch_example_001)
+    output="output"
+    errnum=$?
+  
+    echo -e "-------------------------------------------------------"
+    #echo "$output"
+    cat output
+    echo -e "-------------------------------------------------------"
+  
+    if [ $errnum -eq 0 ]; then
+      echo -en "\n\t\e[95mPress any key once you've plugged these into Developer Workspace\e[0m"
+      read -rsn1 keyin
+      echo
+    
+      while read line; do
+        cmdoutput[i]="$line"
+        i=$((i+1))
+      done < $output
+
+      i=0
+      while [ "${cmdoutput[$i]}" != "Serial Number:" ]; do i=$((i+1)); done
+      i=$((i+1))
+      serialnum="${cmdoutput[i]}"
+      sndir="output_$serialnum"
+    
+      if [ -f "$HOME/$sdkpkgdir/tools/keygen/$sndir/device_info.json" ]; then
+    
+        cp "$HOME/$sdkpkgdir/tools/keygen/$sndir/device_info.json" "$devjsonfile"
+        errnum=$?
+        if [ $errnum -eq 0 ]; then
+        
+          echo -e "\n\t\e[92mdevice_info.json copied to \e[1m~/st-device-sdk-c/example\e[22m directory\e[0m"
+
+        else
+          echo -e "\n\e[91mError copying device_info.json file to SDK example directory\e[0m"      
+        fi
+      else
+        echo -e "\n\e[91mdevice_info.json file is missing\e[0m"
+      fi
+    else
+      echo -e "\n\t\e[91mKeygen tool failed with error #$errnum\e[0m"
+    fi
+  fi
+  
+  echo -e "\n\t\e[97mNow finish device profile & registration in Samsung SmartThings Developer Workspace"
+  echo -e "\t\e[93m>> Download \e[1monboarding_config.json\e[22m to \e[1m~/st-device-sdk-c/example\e[22m directory<<\e[0m"
+        
+  echo -en "\n\t\e[95mPress any key once you have downloaded \e[1monboarding_config.json\e[22m\e[0m"
+  read -rsn1 keyin
+  echo
+        
+  if [ -f "$onbjsonfile" ]; then
+          
+    getjsonitem "$onbjsonfile" "deviceOnboardingId"
+    errnum=$?
+          
+    if [[ $errnum -eq 0 && "$jsonvalue" != "NAME" ]]; then
+
+      echo -e "\t\e[92m$onbjsonfile verified\e[0m"
+      stepst[5]=$done
+                
+    else
+      echo -e "\n\t\e[91mSorry, but onboarding_config.json doesn't look updated\e[0m"
+    fi
+  else
+    echo -e "\n\t\e[91monboarding_config.json is missing from $HOME/$sdkpkgdir/example\e[0m"
+  fi
+      
+}
+
+step7() {
+ 
+  echo -e "\n\t\e[97mBuilding example application\n\e[0m"
+ 
+  cd "$HOME/$sdkpkgdir"/example
+  rm example
+  make
+  errnum=$?
+  
+  if [ $errnum == 0 ]; then
+  
+    echo -en "\n\t\e[93mNote: Deprecated warnings are normal!\e[0m"
+    echo -en "\n\t\e[95mDid you see any errors (\e[1my/n\e[22m)? \e[0m"
+    getyesno
+    
+    if [ "$keyresp" == "n" ]; then
+    
+      echo -e "\n\t\e[92mExample application successfully created\e[0m"
+      
+      createqr
+      
+      if [ $? == 0 ]; then
+        stepst[6]=$done
+      fi
+    else
+      echo -e "\n\t\e[93mCorrect source of errors and try again\e[0m"
+    fi
+  else
+    echo -e "\n\t\e[91mError #$errnum reported by make\e[0m"
+  fi
+}
+
+step8() {
+ 
+  cd "$HOME/$rpipkgdir"
+  
+  echo -e "\n\t\e[97mRaspberry Pi SoftAP Configuration\e[0m"
+  
+  echo -e "\n\t\e[0mLaunching configuration script with root privileges...\e[0m\n"
+  
+  sudo ./SoftAPconfig
+  errnum=$?
+  
+  case $errnum in
+    -1)
+       echo -e "\n\t\e[91mSoftAP configuration failed\e[0m"
+       ;;
+     0)
+       echo -e "\n\t\e[92mSoftAP Successfully Configured\e[0m"
+       stepst[7]=$done
+       ;;
+     1)
+       echo -e "\n\t\e[93mSoftAP configuration not complete\e[0m"
+       ;;
+  esac
+  
+} 
+
+step9() {
+  
+  echo -e "\n\t\e[97mPrepare to onboard your device\e[0m"
+  echo -e "\n\tOpen the SmartThings mobile app and begin the add-device"
+  echo -e "\tprocess for your test device."
+  echo -e "\n\t\e[95mPress any key when you've found your Developer Mode"
+  echo -en "\ttest device and are ready to proceed "
+  read -rsn1 keyin
+  echo 
+  
+  cd "$HOME/$sdkpkgdir/example"
+  
+  getjsonitem "./device_info.json" "serialNumber"
+  if [ $? ]; then
+    pngfile="./$jsonvalue.png"
+    if [ -f "$pngfile" ]; then
+      
+      gpicview "$pngfile" &
+      
+      echo -e "\n\t\e[97mStarting example application...\e[0m\n"
+      
+      ./example &
+      
+      stepst[8]=$done
+      
+      menuselect="q"
+      
+    else
+      echo -e "\n\t\e[91mQR code file is missing; cannot display\e[0m"
+    fi
+  else
+      echo -e "\n\t\e[91mUnexpected error getting device serial number\e[0m"
+  fi
+  
+  
+  
+}
+  
+##########################################################################
+#
+#								- MAIN -
+#
+##########################################################################
+
+# Save directory we're running from
+
+currdir=$(pwd)
+
+# Load step status from file if exists, otherwise initialize with defaults
+if [ -f $stepsfile ]; then
+  read -a stepst <$stepsfile
+else
+  stepst=("${initstepst[@]}")
+fi
+
+#####################################
+#   **** MENU DISPLAY LOOP ****
+#####################################
+
+while [ "$menuselect" != "q" ]
+  do
+    showmenu
+
+    proc="y"
+
+    if [ "$menuselect" != "q" ]; then
+      ix=$((menuselect-1))
+      if [ ${stepst[ix]} == $done ]
+        then
+          echo -en "\n\t\e[93mAre you sure you want to repeat this step? (\e[1my/n\e[22m):\e[0m "
+          getyesno
+          echo
+          if [ "$keyresp" == "n" ]
+            then
+              proc="n"
+            else
+              stepst[ix]=$todo
+          fi
+      fi
+    fi
+
+    if [[ "$proc" == "y" && "$menuselect" != "q" ]]
+      then
+        pix=$((ix-1))
+        if [[ $ix -gt 0 && "${stepst[pix]}" != "$done" ]]
+          then
+            echo -e "\n\t\e[93mComplete the previous steps first!\n"
+
+          else
+            case $menuselect in
+              1)
+                step1
+                ;;
+              2)
+                step2
+                ;;
+              3)
+                step3
+                ;;
+              4)
+                step4
+                ;;
+              5)
+                step5
+                ;;
+              6)
+                step6
+                ;;
+              7)
+                step7
+                ;;
+              8)
+                step8
+                ;;
+              9)
+                step9
+                ;;
+              *)
+                echo -e "\nShould never get here"
+                ;;
+            esac
+        fi
+    fi
+  done
+
+
+# Save step status to a file
+
+updatestatfile
+
+echo -e "\n\e[0mGoodbye\n"
+
+exit 0
