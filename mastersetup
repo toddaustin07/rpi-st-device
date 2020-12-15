@@ -6,10 +6,10 @@ rpimodel=""
 osrelease=0
 currdir=""
 stepsfile="./.stepstat"
-rpipkgdir="rpi-st-device"
-sdkpkgdir="st-device-sdk-c"
-devjsonfile="$HOME/$sdkpkgdir/example/device_info.json"
-onbjsonfile="$HOME/$sdkpkgdir/example/onboarding_config.json"
+rpipkgdir="$HOME/rpi-st-device"
+sdkpkgdir="$HOME/st-device-sdk-c"
+devjsonfile="$sdkpkgdir/example/device_info.json"
+onbjsonfile="$sdkpkgdir/example/onboarding_config.json"
 
 todo="[to-do]"
 done="[done]"
@@ -81,8 +81,8 @@ updatestatfile() {
 
   echo "${stepst[@]}" > $stepsfile
   
-  if [[ "${stepst[1]} == $done" && "$currdir" != "$HOME/$rpipkgdir" ]]; then
-      cp "$stepsfile" "$HOME/$rpipkgdir"
+  if [[ "${stepst[1]} == $done" && "$currdir" != "$rpipkgdir" ]]; then
+      cp "$stepsfile" "$rpipkgdir"
   fi
 
  return 0
@@ -188,9 +188,9 @@ createqr() {
   
   echo -e "\n\t\e[97mCreating QRCODE for your device\e[0m"
         
-  cd "$HOME/$sdkpkgdir/tools/qrgen"
+  cd "$sdkpkgdir/tools/qrgen"
               
-  qroutput=$(python3 stdk-qrgen.py --folder "$HOME/$sdkpkgdir/example/")
+  qroutput=$(python3 stdk-qrgen.py --folder "$sdkpkgdir/example/")
   errnum=$?
               
   if [ $errnum == 0 ]; then
@@ -203,10 +203,10 @@ createqr() {
       qrfname="${outarr[1]}"
       qrfname=${qrfname//[[:space:]]/}
                 
-      if [ -f "$HOME/$sdkpkgdir/tools/qrgen/$qrfname" ]; then
+      if [ -f "$sdkpkgdir/tools/qrgen/$qrfname" ]; then
                 
-        cp "$HOME/$sdkpkgdir/tools/qrgen/$qrfname" "$HOME/$sdkpkgdir/example/$qrfname"
-        echo -e "\t\e[92m$qrfname copied to $HOME/$sdkpkgdir/example/ directory"
+        cp "$sdkpkgdir/tools/qrgen/$qrfname" "$sdkpkgdir/example/$qrfname"
+        echo -e "\t\e[92m$qrfname copied to $sdkpkgdir/example/ directory"
         retcode=0
                   
       else
@@ -219,7 +219,7 @@ createqr() {
     echo -e "\n\t\e[91mqrcode tool failed with error #$errnum\e[0m"
   fi
   
-  cd "$HOME/$rpipkgdir"
+  cd "$rpipkgdir"
   return $retcode
 
 }
@@ -285,11 +285,12 @@ step2() {
 
   clonepkg 1 "https://github.com/toddaustin07/rpi-st-device.git"
 
-  if [[ "${stepst[1]}" == "$done" && "$currdir" != "$HOME/$rpipkgdir" ]]; then
+  if [[ "${stepst[1]}" == "$done" && "$currdir" != "$rpipkgdir" ]]; then
       echo -e "\t\e[93m>> From now on, you should run this setup script from the"
-      echo -e "\t   \e[1m$HOME/$rpipkgdir\e[22m directory\e[0m"
+      echo -e "\t   \e[1m$rpipkgdir\e[22m directory\e[0m"
       echo -e "\t\e[0m>> You can continue for now"
-      cd $HOME/$rpipkgdir
+      cd $rpipkgdir
+      currdir="rpipkgdir"
   fi
   
   return 0
@@ -299,7 +300,7 @@ step3() {
 
   echo -e "\n\t\e[97mInstalling software dependencies - watch for errors...\n\e[0m"
 
-  bash $HOME/$rpipkgdir/installSDKdeps
+  bash $rpipkgdir/installSDKdeps
 
   echo -ne "\n\n\t\e[95mDid you encounter any errors or additional dependencies? (\e[1my/n\e[22m)"
   getyesno
@@ -327,9 +328,9 @@ step5() {
 
   echo -e "\n\t\e[97mBuilding SmartThings Core SDK\n\e[0m"
  
-  bash $HOME/$rpipkgdir/sdkbuildsetup
+  bash $rpipkgdir/sdkbuildsetup
   
-  cd "$HOME/$sdkpkgdir"
+  cd "$sdkpkgdir"
   make
   errnum=$?
   
@@ -343,7 +344,7 @@ step5() {
   else
     echo -e "\n\t\e[91mMake reported error # $errnum. Correct errors and retry.\e[0m\n"
   fi
-  cd "$HOME/$rpipkgdir"  
+  cd "$rpipkgdir"  
   return 0
 }
 
@@ -394,7 +395,7 @@ step6() {
     echo -e "\n\t\e[0mUse the serial number and public key generated below to complete the instructions"
     echo -e "\tin section \e[1m2.6\e[0m 'Register Test Devices'"
   
-    cd "$HOME/$sdkpkgdir/tools/keygen"
+    cd "$sdkpkgdir/tools/keygen"
     #output=$(python3 stdk-keygen.py --firmware switch_example_001)
     output="output"
     errnum=$?
@@ -420,9 +421,9 @@ step6() {
       serialnum="${cmdoutput[i]}"
       sndir="output_$serialnum"
     
-      if [ -f "$HOME/$sdkpkgdir/tools/keygen/$sndir/device_info.json" ]; then
+      if [ -f "$sdkpkgdir/tools/keygen/$sndir/device_info.json" ]; then
     
-        cp "$HOME/$sdkpkgdir/tools/keygen/$sndir/device_info.json" "$devjsonfile"
+        cp "$sdkpkgdir/tools/keygen/$sndir/device_info.json" "$devjsonfile"
         errnum=$?
         if [ $errnum -eq 0 ]; then
         
@@ -460,7 +461,7 @@ step6() {
       echo -e "\n\t\e[91mSorry, but onboarding_config.json doesn't look updated\e[0m"
     fi
   else
-    echo -e "\n\t\e[91monboarding_config.json is missing from $HOME/$sdkpkgdir/example\e[0m"
+    echo -e "\n\t\e[91monboarding_config.json is missing from $sdkpkgdir/example\e[0m"
   fi
       
 }
@@ -469,7 +470,7 @@ step7() {
  
   echo -e "\n\t\e[97mBuilding example application\n\e[0m"
  
-  cd "$HOME/$sdkpkgdir"/example
+  cd "$sdkpkgdir"/example
   rm example
   make
   errnum=$?
@@ -499,7 +500,7 @@ step7() {
 
 step8() {
  
-  cd "$HOME/$rpipkgdir"
+  cd "$rpipkgdir"
   
   echo -e "\n\t\e[97mRaspberry Pi SoftAP Configuration\e[0m"
   
@@ -533,7 +534,7 @@ step9() {
   read -rsn1 keyin
   echo 
   
-  cd "$HOME/$sdkpkgdir/example"
+  cd "$sdkpkgdir/example"
   
   getjsonitem "./device_info.json" "serialNumber"
   if [ $? ]; then
@@ -576,6 +577,14 @@ if [ -f $stepsfile ]; then
   read -a stepst <$stepsfile
 else
   stepst=("${initstepst[@]}")
+fi
+
+# If RPI package is installed, make sure we're running in that directory
+if [ "${stepst[1]}" == "$done" ]; then
+  if [[ "$currdir" != "$rpipkgdir" ]]; then
+    cd "$rpipkgdir"
+    currdir="$rpipkgdir"
+  fi
 fi
 
 #####################################

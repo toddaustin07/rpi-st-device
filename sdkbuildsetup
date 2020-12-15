@@ -5,7 +5,7 @@ cd ~/st-device-sdk-c
 if [ ! -f "src/port/bsp/posix/iot_bsp_wifi_posix.ORIGc" ]; then
   mv src/port/bsp/posix/iot_bsp_wifi_posix.c src/port/bsp/posix/iot_bsp_wifi_posix.ORIGc
 fi
-cp ~/rpi-st-device/iot_bsp_wifi_rpi.c src/port/bsp/posix/iot_bsp_wifi_posix.c
+cp ~/rpi-st-device/iot_bsp_wifi_rpi.c src/port/bsp/posix/iot_bsp_wifi_rpi.c
 if [ ! -f "MakefileORIG" ]; then mv Makefile MakefileORIG; fi
 cp ~/rpi-st-device/RPIMakefile Makefile
 if [ ! -f "stdconfigORIG" ]; then mv stdkconfig stdkconfigORIG; fi

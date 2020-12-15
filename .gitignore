@@ -3,3 +3,7 @@ SAVED_ap
 SAVED_90-wireless.rules
 ORIG_90-wireless.rules
 SoftAPconfig_jessie
+SoftAPconfig_stretch
+.stepstat
+ORIG_dhcpcd
+SAVED_dhcpcd

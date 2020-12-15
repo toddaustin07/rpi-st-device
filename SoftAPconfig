@@ -34,7 +34,7 @@ beg_ip1=0
 beg_ip2=0
 beg_ip3=0
 beg_ip4=0
-def_dev="wlap0"
+def_dev="wlan0"
 def_addr="192.168.2.1"
 def_adrange="192.168.2.2,192.168.2.10"
 def_ch="1"
@@ -50,7 +50,7 @@ devexistsflag=0
 wlan0chan=0
 
 # Test config filenames
-dhcpcd=/etc/network/interfaces.d/ap
+dhcpcd=/etc/dhcpcd.conf
 hostapd=/etc/hostapd/hostapd.conf
 hostapdconf=/etc/default/hostapd
 dnsmasq=/etc/dnsmasq.conf
@@ -102,7 +102,7 @@ checkip() {
  fi
 }
 
-# This function retrieves the current wifi devices from iw dev into global dev_array
+# This function retrieves the current wifi devices from iw dev into global dev_array + stores wlan0 channel in wlan0chan
 getdev() {
 
  local result=""
@@ -191,7 +191,7 @@ rpimodel=$(cat /proc/cpuinfo | grep "Revision" | cut -f2 -d" ")
 if [[ ! "${modellist[@]}" =~ "${rpimodel}" ]]
  then
   echo -e "\e[91m\nThis Raspberry Pi model not tested or supported\n\e[0m"
-  exit 1
+  exit -1
 fi
 
 # Check what OS version we're running on
@@ -202,23 +202,23 @@ osrelease="${osrelease#\"}"
 if [ $osrelease -le 8 ]
  then
   echo -e "\e\91m\nYour OS version is too old; must be Version 8 or later\n\e[0m"
-  exit 1
+  exit -1
 fi
 
 
+echo -en "\t"
 disp_sep "=" 62
 echo 
-echo -e "\e[1m\e[93m                  >>> WARNING!!! <<<"
-echo -e "\e[0mThis script will prepare your system for SoftAP capability"
-echo -e "\thostapd and dnsmasq will be installed/updated"
-echo -e "\tThe following files will be modified*:"
-echo -e "\t\t/etc/dhcpcd.conf"
-echo -e "\t\t/etc/hostapd/hostapd.conf"
-echo -e "\t\t/etc/dnsmasq.conf"
+echo -e "\t\t\e[1m\e[93m             >>> WARNING!!! <<<"
+echo -e "\t\e[0mThis script will prepare your system for SoftAP capability"
+echo -e "\t\tdhcpcd.conf will be modified"
+echo -e "\t\thostapd and dnsmasq will be installed/updated"
 echo 
-echo -e "* Originals will be saved with 'ORIG' appended to the filename"
+echo -e "\tOriginal files will be saved with 'ORIG' appended to the filename"
+echo -e "\tCurrent files will be saved with 'SAVED' appended to the filename"
 echo
-echo -e "\e[33m>> Press \e[1my\e[22m to continue or \e[1mq\e[22m to quit\e[39m"
+echo -e "\t\e[95m>> Press \e[1my\e[22m to continue or \e[1mq\e[22m to quit\e[39m"
+echo -en "\t"
 disp_sep "=" 62
 
 keyin=""
@@ -229,20 +229,21 @@ done
 
 echo
 if [ "$keyin" == "q" ]; then
- exit 0
+ exit 1
 fi
 
-echo -e "\e[33mInstalling/updating hostapd...\e[0m"
+echo -e "\e[97mInstalling/updating hostapd...\e[0m"
 echo
 apt install hostapd
 echo
-echo -e "\e[33mInstalling/updating dnsmasq...\e[0m"
+echo -e "\e[97mInstalling/updating dnsmasq...\e[0m"
 echo
 apt install dnsmasq
 echo
-echo -e "\e[33mSoftware updates \e[1mCOMPLETE\e[0m"
+echo -e "\e[97mSoftware updates \e[92mCOMPLETE\e[0m"
 echo
-echo -en "\e[33mDisabling auto-start for these new services...\e[0m"
+echo -en "\e[97mDisabling auto-start for these new services...\e[0m"
+systemctl unmask hostapd
 update-rc.d hostapd disable
 update-rc.d dnsmasq disable
 
@@ -259,9 +260,9 @@ if [ -f "/etc/dnsmasq.conf" ]
  then
   if [ -f "etc/dnsmasq.ORIGconf" ]
    then
-    cp /etc/dnsmasq.conf /etc/dnsmasq.ORIGconf
-   else
     cp /etc/dnsmasq.conf /etc/dnsmasq.SAVEDconf
+   else
+    cp /etc/dnsmasq.conf /etc/dnsmasq.ORIGconf
   fi
 fi
 cp $currdir/RPIdnsmasq.conf /etc/dnsmasq.conf
@@ -273,10 +274,10 @@ sed -i "/DAEMON_CONF=/c\\DAEMON_CONF=$hostapd" "$hostapdconf"
 if [ $? -ne 0 ]
  then
   echo -e "\n\e[91mError setting DAEMON_CONF for hostapd\n\e[0m"
-  exit 1
+  exit -1
 fi
 
-echo -e "\e[33m\e[1mCOMPLETE\e[0m"
+echo -e "\e[92m\e[1mCOMPLETE\e[0m"
 
 getinput="y"
 while [ "$getinput" == "y" ]
@@ -298,7 +299,7 @@ while [ "$getinput" == "y" ]
 
   instr=""
   echo 
-  echo -e "\e[33mPlease provide the following configuration details...\e[0m"
+  echo -e "\e[95mPlease provide the following configuration details...\e[0m"
   echo
   echo -e "   (Press ENTER to accept the [\e[96mdefaults\e[0m])"
   echo
@@ -330,10 +331,10 @@ while [ "$getinput" == "y" ]
            do
             if [ "$dev" == "$adev" ]; then found=1; fi
            done
-          if [ $found -eq 1 ]
+          if [ $found -ne 1 ]
            then
-            devexistsflag=1
-            echo -en "\t\e[93m** Warning-this device already exists.  Continue (y/n)?"
+            devexistsflag=0
+            echo -en "\t\e[93m** Warning-this device doesn't exist and will be created. OK? (y/n) "
             keyin=""
             while [[ "$keyin" != "y" && "$keyin" != "n" ]]
              do read -rsn1 keyin; done
@@ -341,6 +342,7 @@ while [ "$getinput" == "y" ]
             if [ "$keyin" == "y" ]; then inpOK="yes"; fi
            else
             inpOK="yes"
+            devexistsflag=1
           fi
         fi
        else
@@ -551,16 +553,16 @@ while [ "$getinput" == "y" ]
 
   # Display summary for user confirmation
 
-  echo -e "\n\n\n\n\n\n\n\n\n\n\n\n\n"
+  echo -e "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
   disp_sep "v-" 32
-  echo -e "\n\e[33m\e[1mConfirm your selections:\e[0m\n"
+  echo -e "\n\e[97m\e[1mConfirm your selections:\e[0m\n"
   echo -e "\t Device name: \e[96m$dev\e[0m"
   echo -e "\t   Static IP: \e[96m$addr\e[0m"
   echo -e "\t    IP Range: \e[96m$begrange - $endrange\e[0m"
   echo -e "\t     Channel: \e[96m$ch\e[0m"
   echo -e "\t     Country: \e[96m$cc\e[0m"
   echo
-  echo -en "\e[33m  >> Press \e[1my\e[22m to accept & continue, \e[1mn\e[22m to re-enter, or \e[1mq\e[22m to quit\e[0m"
+  echo -en "\e[95m  >> Press \e[1my\e[22m to accept & continue, \e[1mn\e[22m to re-enter, or \e[1mq\e[22m to quit\e[0m"
 
   keyin=""
   while [[ "$keyin" != "y" && "$keyin" != "n"  && "$keyin" != "q" ]]
@@ -588,122 +590,129 @@ if [ "$keyin" == "y" ]
 
   if [ $devexistsflag -eq 0 ]
    then
-    echo -e "\n\e[33mCreating new wifi device $dev...\e[0m"
+    echo -e "\n\e[97mCreating new wifi device $dev...\e[0m"
     iw phy phy0 interface add $dev type __ap
     if [ "$?" == 0 ]
      then
-      echo -e "\n\e[33m\e[1mCOMPLETE:\e[0m"
+      echo -e "\n\e[92mCOMPLETE:\e[0m"
+
+      systemctl restart networking
       iw dev
       echo
      else
       echo -e "\n\e[91m   ^^Error encountered (maybe AP type device already exists)\e[0m"
-      echo -en "\n\t\e[33mContinue anyway? (\e[1my/n\e[0m)"
+      echo -en "\n\t\e[95mContinue anyway? (\e[1my/n\e[0m)"
       keyin=""
       while [[ "$keyin" != "y" && "$keyin" != "n" ]]
        do read -rsn1 keyin; done
       if [ "$keyin" == "n" ]
        then
         echo -e "\n\n\e[0m** EXITING **\n"
-        exit -1
+        exit 1
       fi
       echo
     fi
-
-   else
-    echo -e "\n\e[0mINFO: not creating device $dev because it already exists\n"
 
   fi
 
   # Set up DHCPCD Network config file
 
-  echo -en "\e[33mUpdating network interface file...\e[0m"
+  echo -en "\n\e[97mUpdating dhcpcd configuration...\e[0m"
 
   if [ -f "$dhcpcd" ]; then
-   cp "$dhcpcd" $currdir/SAVED_ap; fi
-  cp $currdir/apinterface "$dhcpcd"
+   if [ -f "$currdir/ORIG_dhcpcd" ]; then
+    cp "$dhcpcd" "$currdir/SAVED_dhcpcd"
+   else
+    cp "$dhcpcd" "$currdir/ORIG_dhcpcd"
+   fi
+  else
+   echo -e "\n\e[91m/etc/dhcpcd.conf is not found; cannot continue"
+   exit -1
+  fi
+  
+  # Check to see if there is already an entry in the file for this dev
+  line=$(sed -n "/interface $dev/=" "$dhcpcd")
 
-  sed -i "/^allow-hotplug/c\\allow-hotplug $dev" "$dhcpcd"
-  errnum=$?
-  if [ $errnum -gt 0 ]
-  then
-   echo -e "\n\n\e[91m** Unexpected sed error# $errnum: Could not update $dhcpcd\e[0m\n"
-   exit 1
+  # If not, then append the new config lines
+  if [ -z "$line" ]
+   then
+
+    echo -e "\ninterface $dev" >> "$dhcpcd"
+    echo -e "\tstatic ip_address=$addr" >> "$dhcpcd"
+    
+    if [ "$dev" == "wlan0" ]; then
+     echo -e "#\tnohook wpa_supplicant" >> "$dhcpcd"
+    else
+     echo -e "\tnohook wpa_supplicant" >> "$dhcpcd"
+    fi
+    
+   # Otherwise we need to update existing entry
+   # ...first find static ip_address line for the dev
+   else
+
+    nextln=$((line+1))
+
+    result=$(grep -n "static ip_address" "$dhcpcd" | cut -f1 -d:)
+    readarray -t array <<< "$result"
+
+    i=0
+    l="${#array[@]}"
+    fflag=0
+
+    while [[ $i -lt $l && $fflag == 0 ]]
+     do
+      if [ "${array[i]}" == "$nextln" ]; then fflag=1; fi
+      i=$((i+1))
+     done
+
+    if [ $fflag -eq 1 ]
+     then
+      sed -i "$nextln""s/.*/\tstatic ip_address=$addr/" "$dhcpcd"
+      if [ $? != 0 ]; then
+       errnum=$?
+       echo -e "\n\n\e[91m** Unexpected sed error# $errnum: Could not update $dhcpcd\e[39m\n"
+       exit 1
+      fi
+      
+      nextln=$((nextln+1))
+      sed -i "$nextln""s/.*/#\tnohook wpa_supplicant/" "$dhcpcd"
+      if [ $? != 0 ]; then
+       errnum=$?
+       echo -e "\n\n\e[91m** Unexpected sed error# $errnum: Could not update $dhcpcd\e[39m\n"
+       exit 1
+      fi
+      
+     else
+      echo -e "\n\n\t\e[93m** Missing contents in dhcpcd.conf; please edit manually **"
+      echo -e "\n\t\e[33mPress any key to start editor\e[39m"
+      read -rsn1 keyin
+      nano "$dhcpcd"
+    fi  # end if updating existing
+  fi    # end modifying dhcpcd
+    
+  # check for duplicate IP addresses in dhcpcd.conf
+  count=$(grep -c "$addr" "$dhcpcd")
+  if [ $count -gt  1 ]
+   then
+    echo -e "\n\t\e[91m** You have duplicate IP addresses in dhcpcd.conf"
+    echo -e "\n\t\e[39m  Edit manually to resolve conflict"
+    echo -en "\t\e[33m   Press any key to start editor...\e[39m"
+    read -rsn1 keyin
+    nano "$dhcpcd"
+    echo
+   else
+    echo -e "\e[92mCOMPLETE\e[0m"
   fi
 
-  sed -i "/^auto/c\\auto $dev" "$dhcpcd"
-  sed -i "/^iface/c\\iface $dev inet static" "$dhcpcd"
-  sed -i "/address/c\\\taddress $addr" "$dhcpcd"
-  echo -e "\e[1mCOMPLETE\e[0m"
-
-
-  # If Stretch or Buster OS, then setup additional files to make SoftAP work
-
-  if [ $osrelease -gt 8 ]
-   then
-    echo
-    disp_sep "- " 32
-    echo -en "\n\e[33mEnabling concurrent $dev and wlan0 operation...\e[0m"
-
-    # Set up udev file
-
-    if [ -f "/etc/udev/rules.d/90-wireless.rules" ]
-     then
-      if [ -f "$currdir/ORIG_90-wireless.rules" ]
-       then
-        cp /etc/udev/rules.d/90-wireless.rules $currdir/SAVED_90-wireless.rules
-       else
-        cp /etc/udev/rules.d/90-wireless.rules $currdir/ORIG_90-wireless.rules
-      fi
-    fi
-
-    cp $currdir/90-wireless.rules /etc/udev/rules.d/90-wireless.rules
-
-    sed -i "s|RUN+=\"/sbin/iw phy %k interface add.*|RUN+=\"/sbin/iw phy %k interface add $dev type __ap\"|" /etc/udev/rules.d/90-wireless.rules
-
-    errnum=$?
-    if [ $errnum -gt 0 ]
-     then
-      echo -e "\n\e[91mCould not update udev file.  sed error # $errnum\n\e[0m"
-      exit 1
-    fi
-
-    # Now setup dhcpcd hooks for wpa supplicant
-    #   -First save existing file if exists
-
-    if [ ! -f "/lib/dhcpcd/dhcpcd-hooks/10-wpa_supplicant" ]
-     then
-      if [ -f "$currdir/ORIG_10-wpa_supplicant" ]
-       then
-        cp /lib/dhcpcd/dhcpcd-hooks/10-wpa_supplicant $currdir/SAVED_10-wpa_supplicant
-       else
-        cp /lib/dhcpcd/dhcpcd-hooks/10-wpa_supplicant $currdir/ORIG_10-wpa_supplicant
-      fi
-    fi
-
-
-    #   - Setup supplicant hook file based on OS version
-
-    if [ $osrelease -eq 9 ]
-     then
-      cp $currdir/v9new_10-wpa_supplicant /lib/dhcpcd/dhcpcd-hooks/10-wpa_supplicant
-
-     else
-      if [ $osrelease -eq 10 ]
-       then
-        cp $currdir/v10new_10-wpa_supplicant /lib/dhcpcd/dhcpcd-hooks/10-wpa_supplicant
-
-      fi
-    fi
-
-    echo -e "\e[1mCOMPLETE\e[0m"
-
-  fi     #end if V9 OS or later
+  echo -en "\e[97mRestarting dhcpcd service...\e[0m"
+  systemctl restart dhcpcd
+  echo -e "\e[92mCOMPLETE\e[0m"
 
   # Configure hostapd and dnsmasq config files
 
   echo
   disp_sep "- " 32
-  echo -en "\n\e[33mUpdating SoftAP config files...\e[0m"
+  echo -en "\n\e[97mUpdating SoftAP config files...\e[0m"
 
   sed -i "/^country_code/c\\country_code=$cc" "$hostapd"
   sed -i "/^interface/c\\interface=$dev" "$hostapd"
@@ -711,8 +720,9 @@ if [ "$keyin" == "y" ]
 
   sed -i "/^interface/c\\interface=$dev" "$dnsmasq"
   sed -i "/^dhcp-range/c\\dhcp-range=$adrange,12h" "$dnsmasq"
-
-  echo -e "\e[1mCOMPLETE\e[0m"
+  sed -i "/^address/c\\address=/gw.wlan/$addr" "$dnsmasq"
+  
+  echo -e "\e[92mCOMPLETE\e[0m"
 
 
   echo -e "\e[32m"
@@ -721,35 +731,9 @@ if [ "$keyin" == "y" ]
   disp_sep "*" 25
   echo
 
-  # WRAP UP WITH OPTIONAL NETWORK RESTART AND HOSTAPD TEST
+  # WRAP UP WITH OPTIONAL HOSTAPD TEST
 
-  if [ $devexistsflag -eq 0 ]
-   then
-    echo -en "\n\e[33m>> Restart networking service now? (\e[1my/n\e[0m)"
-
-    keyin=""
-    while [[ "$keyin" != "y" && "$keyin" != "n" ]]
-     do
-      read -rsn1 keyin
-     done
-    echo
-
-    if [ "$keyin" == "y" ]
-     then
-      echo
-      systemctl stop networking
-      systemctl start networking
-      echo -e "\n\e[33mNetwork services \e[1mrestarted\e[0m"
-
-      disp_sep "-" 60
-      keyin=""
-      echo
-     else
-      echo -e "\t\e[0mOK, reboot later to ensure $dev is operational\n"
-    fi
-  fi
-
-  echo -en "\e[33m>> Would you like to start hostapd now for testing? (\e[1my/n\e[22m)"
+  echo -en "\e[95m>> Would you like to manually start hostapd now for testing? (\e[1my\e[22m/\e[1mn\e[22m)"
 
   keyin=""
   while [[ "$keyin" != "y" && "$keyin" != "n" ]]
@@ -760,12 +744,20 @@ if [ "$keyin" == "y" ]
   if [ "$keyin" == "y" ]
    then
     echo
-    echo -e "\e[39m  * Starting hostapd; \e[1mCtrl-c\e[22m to exit out when done *"
+    echo -e "\e[93mSwitching to wireless Access Point mode"
+    sed -i "/nohook wpa_supplicant/c\\\tnohook wpa_supplicant" "$dhcpcd"
+    systemctl restart dhcpcd
+    echo -e "\n\e[0m  * Starting hostapd; \e[97m\e[1mCtrl-c\e[22m to exit hostapd when done *\e[0m"
     echo
-    /usr/sbin/hostapd /etc/hostapd/hostapd.conf &
+    /usr/sbin/hostapd "$hostapd"
+    echo
+    echo -e "\e[93mSwitching back to wireless client mode"
+    sed -i "/nohook wpa_supplicant/c\\#\tnohook wpa_supplicant" "$dhcpcd"
+    systemctl restart dhcpcd
   fi
-
+else
+ exit 1  
 fi
 
-echo -e "\n\n\e[1m*** DONE ***\e[0m\n"
+echo -e "\n\n\e[97m*** DONE ***\e[0m\n"
 exit 0

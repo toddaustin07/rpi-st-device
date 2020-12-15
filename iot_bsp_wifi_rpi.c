@@ -55,7 +55,7 @@ int _perform_scan();
 void _parsemac(char *textptr, uint8_t *hexbuf);
 unsigned int _htoi (const char *ptr);
 int _getnumeric(int maxdigits, char *text);
-iot_error_t _getrpiconf(char *currdir);
+bool _getrpiconf(char *currdir);
 int _isupIface(char *devname);
 int _isconfWifi(char *devname, char *ssid);
 int _parseconfparm(char *parmstr, char *text);
@@ -69,6 +69,8 @@ int _updateHfile(char *fname, char *ssid,char *password, char*iface);
 int _switchSSID(char *dev, char *ssid);
 bool _checkfortestdevfile();
 bool _checksoftapcontrol(char *dir);
+bool _switchmode(char *mode);
+bool _checkstartSoftAP(char *service);
 
 /** DEFINE GLOBAL STATIC VARIABLES **/
 
@@ -81,7 +83,10 @@ static struct scandata scanstore;
 
 static bool Ethernet = true;
 static bool ManageAP = true;
-static bool Dualmode = true;
+static bool ConcurrentWifi = false;
+static bool DualWifidev = false;
+static bool APWifionly = false;
+static bool STWifionly = true;
 static bool AP_ON = false;
 static char PHYSWIFIDEV[5] = "phy0";
 static char wifi_sta_dev[MAXDEVNAMESIZE+1] = "";
@@ -108,28 +113,65 @@ static int WIFI_INITIALIZED = false;
 iot_error_t iot_bsp_wifi_init()
 {
 
-    char ssid[IOT_WIFI_MAX_SSID_LEN+1];
+    //char ssid[IOT_WIFI_MAX_SSID_LEN+1];
 
     IOT_INFO("[rpi] iot_bsp_wifi_init");
 
     if (!WIFI_INITIALIZED)  {
 
- //       _getrpiconf(DEFAULTDIR);                            // read config file
+        if (!_getrpiconf(DEFAULTDIR)) {                           // read config file
 
-        if (!_initDevNames()) {                     // initialize device names & info
-            IOT_ERROR("[rpi] Failure initializng interface device names");
-            return IOT_ERROR_CONN_OPERATE_FAIL;
+            if (!_initDevNames()) {                     // initialize device names & info
+                IOT_ERROR("[rpi] Failure initializng interface device names");
+                return IOT_ERROR_CONN_OPERATE_FAIL;
+            }
+
+            //Station device only
+            if ((strcmp(wifi_sta_dev,"") != 0) && (strcmp(wifi_ap_dev,"") == 0)) {
+
+                STWifionly=true;
+                ManageAP=true;
+                ConcurrentWifi=false;
+                DualWifidev=false;
+                APWifionly=false;
+                IOT_INFO("[rpi] Wifi station device %s found",wifi_sta_dev);
+            }
+
+            // AP device only
+            if ((strcmp(wifi_sta_dev,"") == 0) && (strcmp(wifi_ap_dev,"") != 0)) {
+
+                if (Ethernet) {
+                    APWifionly=true;
+                    ManageAP=false;                             // leave AP always on
+                    ConcurrentWifi=false;
+                    DualWifidev=false;
+                    STWifionly=false;
+                    IOT_INFO("[rpi] Wifi AP device %s found",wifi_ap_dev);
+                } else {
+                    IOT_ERROR("[rpi] No station device available");
+                    return IOT_ERROR_CONN_OPERATE_FAIL;
+                }
+            }
+
+            // Both Station and AP devices
+            if ((strcmp(wifi_sta_dev,"") != 0) && (strcmp(wifi_ap_dev,"") != 0)) {
+
+                DualWifidev=true;
+                ManageAP=true;
+                ConcurrentWifi=false;                   // no Concurrent support for now
+                APWifionly=false;
+                STWifionly=false;
+                IOT_INFO("[rpi] %s station and %s AP devices found",wifi_sta_dev,wifi_ap_dev);
+            }
+
         }
 
-        if (strcmp(wifi_sta_dev,wifi_ap_dev) == 0)          // if no separate AP device, then can't assume dual mode
-            Dualmode = false;
-        else
-            Dualmode = true;
+        // We have wireless devices, now check Ethernet
 
-        if (Ethernet) {                                     // If ethernet device, check it is up
+        if (Ethernet) {
 
             if (_isupIface(eth_dev))
-                IOT_INFO("[rpi] Ethernet connection confirmed: %s",eth_dev);
+                IOT_INFO("[rpi] Ethernet connection available: %s",eth_dev);
 
             else {
 
@@ -140,25 +182,6 @@ iot_error_t iot_bsp_wifi_init()
         }
         else
             IOT_INFO("[rpi] No Ethernet");
-
-
-        if(_isconfWifi(wifi_sta_dev,ssid)) {             // wifi doesn't have to be on or connected, just devices defined
-
-            IOT_INFO("[rpi] Wifi station device confirmed: %s",wifi_sta_dev);
-
-            if (Dualmode) {
-                if(!_isconfWifi(wifi_ap_dev,ssid)) {
-
-                    IOT_ERROR("Wifi AP device not configured: %s",wifi_ap_dev);
-                    return IOT_ERROR_NET_INVALID_INTERFACE;
-                }
-            }
-            IOT_INFO("[rpi] Wifi AP device confirmed: %s",wifi_ap_dev);
-        }
-        else {
-            IOT_ERROR("Wifi station device not configured: %s",wifi_sta_dev);
-            return IOT_ERROR_NET_INVALID_INTERFACE;
-        }
 
 		if (!_checksoftapcontrol(SOFTAPCONTROLDIR)) {		// Make sure SoftAP control scripts are present
 			IOT_ERROR("Missing SoftAP control scripts");
@@ -184,12 +207,13 @@ Ouput:      Global values:
 
 **************************************************************************************/
 
-iot_error_t _getrpiconf(char *currdir) {
+bool _getrpiconf(char *currdir) {
 
     FILE *pf;
     char pathname[100];
     char *readline = NULL;
     size_t len = 0;
+    int errnum;
     char *textptr;
     char parmstr[50];
 
@@ -265,11 +289,15 @@ iot_error_t _getrpiconf(char *currdir) {
         if (readline)
             free(readline);
 
-    }  else
+    }  else {
+        errnum=errno;
+        if (errnum != ENOENT)
+            IOT_INFO("[rpi] Could read RPI configuration file");
 
-        IOT_INFO("[rpi] RPI configuration file not found; defaults assumed");
+        return false;
+    }
 
-    return IOT_ERROR_NONE;
+    return true;
 }
 
 bool _checkfortestdevfile() {
@@ -498,6 +526,9 @@ int _initDevNames() {
                         else {
                             if (strcmp(devtype,"AP") == 0) {
                                 strcpy(wifi_ap_dev,devname);
+                                if (wifimacaddr[0] == 0)
+                                    memcpy(wifimacaddr,tmpmac,7);
+
                             }
                         }
                         found = true;
@@ -515,17 +546,6 @@ int _initDevNames() {
         }    // end Interface search loop
 
         pclose(pf);
-
-
-        if (strcmp(wifi_sta_dev,"") == 0) {
-            IOT_ERROR("[rpi] Wifi station device not found");
-            return 0;
-        }
-
-        if (strcmp(wifi_ap_dev,"") == 0) {
-            Dualmode = false;
-            IOT_INFO("[rpi] WARNING - No dedicated AP virtual device defined; will use %",wifi_sta_dev);
-        }
 
 
     } else {
@@ -766,6 +786,7 @@ iot_error_t iot_bsp_wifi_set_mode(iot_wifi_conf *conf)
 
 	char connected_ssid[IOT_WIFI_MAX_SSID_LEN+1];
 	int scancount;
+	char SoftAPdev[16];
 
 
 //	IOT_INFO("[rpi] iot_bsp_wifi_set_mode = %d", conf->mode);
@@ -775,10 +796,18 @@ iot_error_t iot_bsp_wifi_set_mode(iot_wifi_conf *conf)
 	case IOT_WIFI_MODE_OFF:
 
         IOT_INFO("[rpi] Requested mode OFF");
-                                                        // we don't ever turn off the station device, just AP
-        if (ManageAP)
+
+        if (!ConcurrentWifi && AP_ON) {
 
             _SoftAPControl("stop");                     // make sure hostapd/dnsmasq are stopped
+
+            if (STWifionly) {
+                if (! _switchmode("STA")) {
+                    IOT_ERROR("[rpi] Failed to switch wireless modes");
+                    return IOT_ERROR_CONN_OPERATE_FAIL;
+                }
+            }
+        }
 
 		break;
 
@@ -786,27 +815,19 @@ iot_error_t iot_bsp_wifi_set_mode(iot_wifi_conf *conf)
 
         IOT_INFO("[rpi] Requested mode SCAN");
 
-        if (!Dualmode && AP_ON) {                       // Can't scan if not Dual wifi devices and in AP mode
+        if ((!AP_ON) || (DualWifidev) || (APWifionly)) {
 
-            IOT_INFO("[rpi] Unable to perform scan in current state");
-            return IOT_ERROR_NONE;
-        }
+            scancount = _perform_scan();                        // do scan and check resulting AP count
 
-        if(!_enableWifi(wifi_sta_dev))  {                       // wifi device needs to be up; but doesn't have to be connected
-            IOT_ERROR("[rpi] Cannot enable Wifi");
-            return IOT_ERROR_NET_CONNECT;
-        }
+            if (scancount == 0) {                               // if no results...
 
-        scancount = _perform_scan();                        // do scan and check resulting AP count
+                usleep(SCANMODEWAITTIME);                       //     pause and
+                scancount = _perform_scan();                    //     try one more time
+            }
 
-        if (scancount == 0) {                               // if no results...
-
-            usleep(SCANMODEWAITTIME);                       //     pause and
-            scancount = _perform_scan();                    //     try one more time
-        }
-
-        IOT_INFO("[rpi] WiFi scan completed. %d APs found",scancount);
-
+            IOT_INFO("[rpi] WiFi scan completed. %d APs found",scancount);
+        } else
+            IOT_INFO("[rpi] Scan not performed while in AP mode");
 
 		break;
 
@@ -815,16 +836,26 @@ iot_error_t iot_bsp_wifi_set_mode(iot_wifi_conf *conf)
 
         IOT_INFO("[rpi] Requested mode STATION");
 
-        if (AP_ON) {                                          // Turn off SoftAP
+        if (AP_ON && ManageAP) {                                          // Turn off SoftAP
 
-            if(!_SoftAPControl("stop"))
+            if (!_SoftAPControl("stop"))
                 IOT_INFO("[rpi] Problem stopping SoftAP");
+
+            if (STWifionly) {
+                if (! _switchmode("STA")) {
+                    IOT_ERROR("[rpi] Failed to switch wifi mode");
+                    return IOT_ERROR_CONN_OPERATE_FAIL;
+                }
+            }
+
         }
 
-        if (!Dualmode)
-                usleep(SOFTAPWAITTIME);                         // Switching wlan0; give it some time to transition
+        if (STWifionly) {
+            usleep(SOFTAPWAITTIME);                         // Switching wlan0; give it some time to transition
+            usleep(SOFTAPWAITTIME);
+        }
 
-        if(_enableWifi(wifi_sta_dev))  {                       // Ensure wifi station is operational
+        if(DualWifidev || STWifionly)  {
 
             //NOW CHANGE CONNECTION PER conf->ssid
 
@@ -854,61 +885,66 @@ iot_error_t iot_bsp_wifi_set_mode(iot_wifi_conf *conf)
 
             }
 
-        } else {            // reach here if failed to enable wifi station
-
-            if (!Ethernet) {                                    // Ethernet is fallback, if not configured, then error
-
-                IOT_ERROR("[rpi] Cannot enable Wifi station mode");
-                return IOT_ERROR_NET_CONNECT;
-            }
-            else
-                IOT_INFO("[rpi] Wifi station %s not enabled; Defaulting to Ethernet for station mode",wifi_sta_dev);
         }
-
-        return IOT_ERROR_NONE;
 
 		break;
 
 	case IOT_WIFI_MODE_SOFTAP:
 
-
         IOT_INFO("[rpi] Requested mode SoftAP");
 
         if (ManageAP) {
 
-            if (!_setupHostapd(conf->ssid,conf->pass,wifi_ap_dev)) {               // Setup hostapd.conf file with ssid & password
+            if (STWifionly)
+                strcpy(SoftAPdev,wifi_sta_dev);
+            else
+                strcpy(SoftAPdev,wifi_ap_dev);
+
+            if (!_setupHostapd(conf->ssid,conf->pass,SoftAPdev)) {               // Setup hostapd.conf file with ssid & password
 
                 IOT_ERROR("[rpi] Couldn't update hostapd.conf file");
                 return IOT_ERROR_CONN_OPERATE_FAIL;
             }
 
 
-            if(!_enableWifi(wifi_ap_dev))  {                            // make sure AP device is enabled
-
-                IOT_ERROR("[rpi] Wifi device %s not enabled",wifi_ap_dev);
-                return IOT_ERROR_CONN_OPERATE_FAIL;
-            }
-
-
-            if (!Dualmode)
+            if (!DualWifidev)
                 usleep(SOFTAPWAITTIME);                                 // pause to let wireless come up
 
+            if (STWifionly) {
+                if (!_switchmode("AP")) {
+                    IOT_ERROR("[rpi] Failed to switch wifi mode");
+                    return IOT_ERROR_CONN_OPERATE_FAIL;
+                }
+            }
 
-            if(!_SoftAPControl("start")) {                             // start hostapd & dnsmasq services
+            usleep(SOFTAPWAITTIME);
+            usleep(SOFTAPWAITTIME);
+
+            if (!_SoftAPControl("start")) {                             // start hostapd & dnsmasq services
                 IOT_ERROR("[rpi] Problem starting SoftAP");
                 return IOT_ERROR_CONN_OPERATE_FAIL;
             }
 
             usleep(SOFTAPWAITTIME);                                 //pause to let hostapd & dnsmasq to come up
 
-            // NEED TO ADD CODE HERE TO VERIFY HOSTAPD IS UP
-        }
+            // Confirm hostapd has started
+            if (!_checkstartSoftAP("hostapd")) {
+                usleep(SOFTAPWAITTIME);
+                if (!_checkstartSoftAP("hostapd")) {
+                    IOT_ERROR("[rpi] SoftAP service failed to start");
+                    return IOT_ERROR_CONN_OPERATE_FAIL;
+                }
+            }
 
+        }
 
 		IOT_DEBUG("wifi_init_softap finished.SSID:%s password:%s",
 				wifi_config.ap.ssid, wifi_config.ap.password);
 
-		IOT_INFO("[rpi] AP Mode Started on device %s",wifi_ap_dev);
+        if (STWifionly)
+            IOT_INFO("[rpi] AP Mode Started on device %s",wifi_sta_dev);
+        else
+            IOT_INFO("[rpi] AP Mode Started on device %s",wifi_ap_dev);
 
 		break;
 
@@ -1021,6 +1057,93 @@ int _waitWifiConn(char *dev, char *ssid) {
         return(1);
     else
         return(0);
+
+}
+
+// This function checks status of hostapd service to be sure it started
+bool _checkstartSoftAP(char *service) {
+
+    #define SERVSTATCMD "systemctl status "
+    const int maxdatasize = 200;
+    FILE *pf;
+    char *lineptr;
+    int errnum;
+    char command[20];
+    char data[maxdatasize];
+    bool fflag = false;
+    int linecounter = 0;
+    int foundstartedline = 0;
+
+    strcpy(command,SERVSTATCMD);
+    strcat(command,service);
+    pf = popen(command,"r");
+
+    if (pf) {
+
+        while (fgets(data,maxdatasize,pf)) {
+            linecounter++;
+            lineptr = strstr(data,"AP-ENABLED");
+
+            if (lineptr) {
+
+                while (fgets(data,maxdatasize,pf)) {
+                    linecounter++;
+                    lineptr = strstr(data,"Started Advanced IEEE 802.11 AP");
+
+                    if (lineptr) {
+                        fflag=true;
+                        foundstartedline=linecounter;
+                    }
+                }
+            }
+        }
+        pclose(pf);
+        if (fflag && (foundstartedline == linecounter))
+            return true;
+
+    } else {
+        errnum=errno;
+        IOT_INFO("[rpi] WARNING: Failed to execute service status command; error #%d",errnum);
+    }
+
+    return false;
+}
+
+bool _switchmode(char *mode) {
+
+    #define DHCPCDCONF "/etc/dhcpcd.conf"
+
+    FILE *pf;
+    int errnum=0;
+    char command[100];
+
+    if (strcmp(mode,"AP") == 0)
+        strcpy(command,"sudo sed -i \"/^#\tnohook wpa_supplicant/c\\\tnohook wpa_supplicant\" ");
+    else
+        strcpy(command,"sudo sed -i \"/^\tnohook wpa_supplicant/c\\#\tnohook wpa_supplicant\" ");
+
+
+    strcat(command,DHCPCDCONF);
+
+    pf = popen(command, "r");
+    if (pf) {
+        pclose(pf);
+
+        strcpy(command,"sudo systemctl restart dhcpcd");
+        pf = popen(command, "r");
+        if (pf) {
+            pclose(pf);
+            return true;
+        } else {
+            errnum=errno;
+            IOT_ERROR("[rpi] Failed to perform dhcpcd restart; error #%d",errnum);
+            return false;
+        }
+    } else {
+        errnum=errno;
+        IOT_ERROR("[rpi] Failed to update dhcpcd.conf; error #%d",errnum);
+        return false;
+    }
 
 }
 
@@ -1335,17 +1458,23 @@ int _perform_scan()  {
     FILE *pf;
     char command[30];
     char data[maxdatasize];
+    char scandev[16];
     int ap_num;
     char *lineptr;
     int errnum, ferr;
     int i;
     char tmpbuf[IOT_WIFI_MAX_SSID_LEN+1];
 
-    IOT_INFO("[rpi] Running Wifi AP scan using %s",wifi_sta_dev);
+    if (strcmp(wifi_sta_dev,"") != 0)
+        strcpy(scandev,wifi_sta_dev);
+    else
+        strcpy(scandev,wifi_ap_dev);
+
+    IOT_INFO("[rpi] Running Wifi AP scan using %s",scandev);
 
     // Execute system command to get wifi scan list
     strcpy(command,LINUXWIFISCAN_p1);
-    strcat(command, wifi_sta_dev);
+    strcat(command, scandev);
     strcat(command, LINUXWIFISCAN_p2);
 
     scanstore.apcount = 0;
