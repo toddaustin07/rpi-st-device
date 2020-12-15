@@ -1,0 +1,25 @@
+#!/bin/bash
+
+dhcpcd="/etc/dhcpcd.conf"
+
+echo -e "\n\e[97mTHIS SCRIPT WILL MANUALLY START HOSTAPD FOR TESTING\e[0m"
+echo -e "\ndhcpcd.conf pre-requisites:"
+echo -e "\twlan0 interface defined with static IP address"
+echo -e "\t - with commented-out 'nohook wpa_supplicant' line"
+echo
+echo -en "Press any key to proceed or Ctrl-c to quit... "
+read -rsn1 keyin
+echo
+echo -e "\n\e[93mSwitching to wireless Access Point mode"
+sudo sed -i "/nohook wpa_supplicant/c\\\tnohook wpa_supplicant" "$dhcpcd"
+sudo systemctl restart dhcpcd
+echo -e "\n\e[0m  * Starting hostapd; \e[97m\e[1mCtrl-c\e[22m to exit hostapd when done *\e[0m"
+echo
+sudo /usr/sbin/hostapd /etc/hostapd/hostapd.conf
+echo
+echo -e "\e[93mSwitching back to wireless client mode"
+sudo sed -i "/nohook wpa_supplicant/c\\#\tnohook wpa_supplicant" "$dhcpcd"
+sudo systemctl restart dhcpcd
+echo 
+echo -e "\e[97mDone\e[0m"
+echo
