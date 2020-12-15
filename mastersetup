@@ -368,7 +368,7 @@ step6() {
   fi
   
 
-  #chromium-browser community.smartthings.com/t/how-to-build-direct-connected-devices/204055 >/dev/null 2>&1 &
+  chromium-browser community.smartthings.com/t/how-to-build-direct-connected-devices/204055 >/dev/null 2>&1 &
   
   echo -e "\n\t\e[97mRegister Project in Samsung SmartThings Develper Workspace\e[0m"
   
@@ -504,7 +504,7 @@ step8() {
   
   echo -e "\n\t\e[97mRaspberry Pi SoftAP Configuration\e[0m"
   
-  echo -e "\n\t\e[0mLaunching configuration script with root privileges...\e[0m\n"
+  echo -e "\n\t\e[0mLaunching configuration script with \e[1mroot\e[0m privileges...\n"
   
   sudo ./SoftAPconfig
   errnum=$?
@@ -557,8 +557,6 @@ step9() {
   else
       echo -e "\n\t\e[91mUnexpected error getting device serial number\e[0m"
   fi
-  
-  
   
 }
   
