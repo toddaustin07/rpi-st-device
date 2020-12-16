@@ -26,9 +26,9 @@ Pre-requisites
 Useful reading
 ---------------
 - Official developer documentation for direct connected devices:  https://smartthings.developer.samsung.com/docs/devices/direct-connected-devices/overview.html
+- SmartThings API Reference: https://github.com/SmartThingsCommunity/st-device-sdk-c/blob/master/doc/APIs.md
 - How to build Direct Connect Devices on ST Community:  https://community.smartthings.com/t/how-to-build-direct-connected-devices/204055
-  
-  Note that any reference in the above documentation to toolchains and MCU boards can be ignored; instead we will be using a Raspberry Pi to be the device.
+  Note that the above community post is not for Raspberry Pi, so any reference to toolchains and MCU boards can be ignored; these instructions should only be followed as outlined in the Configuration Guide in this repository
 - Quickstart Guide (in this repository)
 - How to Configure your Raspberry Pi for SmartThings Direct Connect (in this repository)
 
