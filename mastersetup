@@ -396,13 +396,13 @@ step6() {
     echo -e "\tin section \e[1m2.6\e[0m 'Register Test Devices'"
   
     cd "$sdkpkgdir/tools/keygen"
-    #output=$(python3 stdk-keygen.py --firmware switch_example_001)
-    output="output"
+    output=$(python3 stdk-keygen.py --firmware switch_example_001)
+    #output="output"
     errnum=$?
   
     echo -e "-------------------------------------------------------"
-    #echo "$output"
-    cat output
+    echo "$output"
+    #cat output
     echo -e "-------------------------------------------------------"
   
     if [ $errnum -eq 0 ]; then
