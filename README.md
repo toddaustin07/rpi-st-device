@@ -30,8 +30,8 @@ Useful reading
 - How to build Direct Connect Devices on ST Community:  https://community.smartthings.com/t/how-to-build-direct-connected-devices/204055
   - Note that the above community post is not for Raspberry Pi, so any reference to toolchains and MCU boards can be ignored
   - Also, these instructions should only be followed as outlined in the Configuration Guide in this repository
-- Quickstart Guide:  https://github.com/toddaustin07/rpi-st-device/blob/main/QuickstartGuide.pdf
-- Configuration Guide:  https://github.com/toddaustin07/rpi-st-device/blob/main/ConfigGuide.pdf
+- Quickstart Guide for Raspberry Pi:  https://github.com/toddaustin07/rpi-st-device/blob/main/QuickstartGuide.pdf
+- Configuration Guide for Raspberry Pi:  https://github.com/toddaustin07/rpi-st-device/blob/main/ConfigGuide.pdf
 
 Two Ways to Proceed
 -------------------
