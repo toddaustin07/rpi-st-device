@@ -20,7 +20,7 @@ Pre-requisites
 - Python 3.5 or later (required for SDK tools: keygen and qrgen)
 	- additional packages:  pynacl, qrcode, pillow (via pip installer)
   
-- RPI Sametime Device enabling package (this repository)
+- RPI SmartThings device enabling package (this repository)
 	
   
 Useful reading
