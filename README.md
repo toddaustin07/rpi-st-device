@@ -35,8 +35,10 @@ Useful reading
 
 Two Ways to Proceed
 -------------------
-1) Download mastersetup script to your Pi home directory, chmod +x to make it executable, and run it: http://toddaustin07.github.io
-2) Follow step-by-step manual configuration guide http://toddaustin07.github.io/ConfigGuide.pdf
+1) Use a fully-automated bash script to quickly get up and running
+2) Follow step-by-step MANUAL configuration guide
+
+For either option, start here ==> http://toddaustin07.github.io
 
 Work in progress
 ----------------
