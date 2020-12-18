@@ -1,22 +1,27 @@
 #!/bin/bash
-
-# This script sets up configuration for a SoftAP using hostapd and dnsmasq
+#################################################################################
+# Enabling Raspberry Pi to run SmartThings direct-connected device applications
+#                  SoftAP install and configure bash script
+#                           Version 0.20201217
 #
-# Optional arguments (future use):
-#	#1 AP device name (e.g. wlap0, wlmyap, wlpiap, etc.)
-#	#2 Static IP Address for AP device
-#	#3 IP address range (comma separated)
-#	#4 Wifi channel number for AP device (1-11)
-#	#5 2-character country code
+# Copyright 2020 Todd A. Austin
 #
-# Author: Todd A. Austin toddaustin07@yahoo.com
-# Date:   December 2, 2020
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.                        
+#
+#################################################################################
 
-dev=$1
-addr=$2
-adrange=$3
-ch=$4
-cc=$5
+
+# Declare globally used variables
 
 rpimodel=""
 osrelease=""
@@ -46,10 +51,15 @@ ipcount=0
 declare -a dhcp_array_dev
 declare -a dhcp_array_ip
 declare -a dev_array
+declare -a type_array
+declare -a chan_array
+wlan0index=-1
 devexistsflag=0
 wlan0chan=0
-
-# Test config filenames
+wlan0type=""
+devtype=""
+ 
+# Config file names
 dhcpcd=/etc/dhcpcd.conf
 hostapd=/etc/hostapd/hostapd.conf
 hostapdconf=/etc/default/hostapd
@@ -102,16 +112,60 @@ checkip() {
  fi
 }
 
-# This function retrieves the current wifi devices from iw dev into global dev_array + stores wlan0 channel in wlan0chan
+# This function retrieves the current wifi devices from iw dev command
+# Output: dev_array, type_array, chan_array, wlan0chan, wlan0type
 getdev() {
 
  local result=""
  local iflag=-1
  local index=0
+ local iwdev_array=()
 
- result=$(iw dev | grep -e "Interface" | cut -f2 -d" ")
- readarray -t dev_array <<< "$result"
+ result=$(iw dev)
+ 
+ readarray -t iwdev_array <<< $result
+ lineindex=0;
+ savIFS=$IFS
+ IFS=" "
+ len="${#iwdev_array[@]}"
+ 
+ while [ $lineindex -lt $len ]; do
+   line=${iwdev_array[lineindex]}
+   
+   if [ "$line" != "phy#0" ]; then
+    
+     read -a parms <<< $line
+     
+     if [[ "${parms[0]}" == *"Interface"* ]]; then
+       dev_array[index]="${parms[1]}"
+      
+       lineindex=$((lineindex+1))
+      
+       while [[ "${iwdev_array[$lineindex]}" != *"Interface"* && $lineindex -lt $len ]]; do
+         line=${iwdev_array[lineindex]}
+         read -a parms <<< $line
+         if [[ "${parms[0]}" == *"type"* ]]; then
+           type_array[index]=${parms[1]}
+         else
+           if [[ "${parms[0]}" == *"channel"* ]]; then
+             chan_array[index]=${parms[1]}
+           fi
+         fi
+         lineindex=$((lineindex+1))
+       done  
+       
+       if [[ "${iwdev_array[$lineindex]}" == *"Interface"* ]]; then 
+         lineindex=$((lineindex-1))
+         index=$((index+1))
+       fi
+     fi      
+   fi
+          
+   lineindex=$((lineindex+1))
+ done
 
+ index=0
+ iflag=-1
  for devitem in "${dev_array[@]}"
   do
    if [ "$devitem" == "wlan0" ]; then iflag=$index; fi
@@ -120,10 +174,11 @@ getdev() {
 
  if [ $iflag -ge 0 ]
   then 
-   result=$(iw dev | grep -e "channel" | cut -f2 -d" ")
-   readarray -t chanarr <<< "$result"
-   wlan0chan="${chanarr[iflag]}"
+   wlan0chan=${chan_array[$iflag]}
+   wlan0type=${type_array[$iflag]}
  fi
+
+ IFS=$savIFS
 }
 
 # This function retrieves the device/IP pairs from dhcpcd.conf,
@@ -205,7 +260,7 @@ if [ $osrelease -le 8 ]
   exit -1
 fi
 
-
+# Display notice and get user input to proceed
 echo -en "\t"
 disp_sep "=" 62
 echo 
@@ -232,6 +287,8 @@ if [ "$keyin" == "q" ]; then
  exit 1
 fi
 
+# Install SoftAP services: hostapd and dnsmasq
+#
 echo -e "\e[97mInstalling/updating hostapd...\e[0m"
 echo
 apt install hostapd
@@ -247,8 +304,8 @@ systemctl unmask hostapd
 update-rc.d hostapd disable
 update-rc.d dnsmasq disable
 
-# Copy over the initial default config files
-
+# Get the initial default config files
+# (there isn't any original hostapd.conf file)
 if [ -f "/etc/hostapd/hostapd.conf" ]
  then
   cp /etc/hostapd/hostapd.conf /etc/hostapd/hostapd.SAVEDconf
@@ -268,7 +325,7 @@ fi
 cp $currdir/RPIdnsmasq.conf /etc/dnsmasq.conf
 
 
-# Set hostapd config location
+# Declare hostapd config file location
 
 sed -i "/DAEMON_CONF=/c\\DAEMON_CONF=$hostapd" "$hostapdconf"
 if [ $? -ne 0 ]
@@ -283,16 +340,18 @@ getinput="y"
 while [ "$getinput" == "y" ]
  do
 
-  # Get current system defined wifi devices from iw dev (into dev_array) + wlan0 channel number
+  # Retrieve current wifi devices from iw dev
   getdev
 
-  # initialze defaults
+  # Initialize user input defaults
   cc="$def_cc"
   dev="$def_dev"
   addr="$def_addr"
   adrange="$def_adrange"
   if [ $wlan0chan -gt 0 ]; then def_ch=$wlan0chan; fi
   ch="$def_ch"
+
+  # Time to get input from user
 
   echo
   disp_sep "-" 62
@@ -326,12 +385,14 @@ while [ "$getinput" == "y" ]
           echo -e "\t\e[91m** Device name too short; try again"
          else
           # See if device already defined
-          found=0
+          found=-1
+          index=0
           for adev in "${dev_array[@]}"
            do
-            if [ "$dev" == "$adev" ]; then found=1; fi
+            if [ "$dev" == "$adev" ]; then found=$index; fi
+            index=$((index+1))
            done
-          if [ $found -ne 1 ]
+          if [ $found -lt 0 ]
            then
             devexistsflag=0
             echo -en "\t\e[93m** Warning-this device doesn't exist and will be created. OK? (y/n) "
@@ -342,6 +403,7 @@ while [ "$getinput" == "y" ]
             if [ "$keyin" == "y" ]; then inpOK="yes"; fi
            else
             inpOK="yes"
+            devtype="${type_array[$found]}"
             devexistsflag=1
           fi
         fi
@@ -551,7 +613,7 @@ while [ "$getinput" == "y" ]
     fi
    done
 
-  # Display summary for user confirmation
+  # Display summary for final user confirmation
 
   echo -e "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
   disp_sep "v-" 32
@@ -586,18 +648,19 @@ if [ "$keyin" == "y" ]
 
   disp_sep "- " 32
 
-  # Create new AP device if doesn't already exist
+  # If given device name doesn't exist, create it
 
   if [ $devexistsflag -eq 0 ]
    then
-    echo -e "\n\e[97mCreating new wifi device $dev...\e[0m"
+    echo -e "\n\e[97mCreating new wifi AP-type device $dev...\e[0m"
     iw phy phy0 interface add $dev type __ap
     if [ "$?" == 0 ]
      then
       echo -e "\n\e[92mCOMPLETE:\e[0m"
 
-      systemctl restart networking
+      systemctl restart networking    # not sure this is needed
       iw dev
+      devtype="AP"
       echo
      else
       echo -e "\n\e[91m   ^^Error encountered (maybe AP type device already exists)\e[0m"
@@ -615,15 +678,15 @@ if [ "$keyin" == "y" ]
 
   fi
 
-  # Set up DHCPCD Network config file
+  # Set up dhcpcd.conf file
 
   echo -en "\n\e[97mUpdating dhcpcd configuration...\e[0m"
 
   if [ -f "$dhcpcd" ]; then
-   if [ -f "$currdir/ORIG_dhcpcd" ]; then
-    cp "$dhcpcd" "$currdir/SAVED_dhcpcd"
+   if [ -f "/etc/ORIG_dhcpcd.conf" ]; then
+    cp "$dhcpcd" "/etc/SAVED_dhcpcd.conf"
    else
-    cp "$dhcpcd" "$currdir/ORIG_dhcpcd"
+    cp "$dhcpcd" "/etc/ORIG_dhcpcd.conf"
    fi
   else
    echo -e "\n\e[91m/etc/dhcpcd.conf is not found; cannot continue"
@@ -640,14 +703,14 @@ if [ "$keyin" == "y" ]
     echo -e "\ninterface $dev" >> "$dhcpcd"
     echo -e "\tstatic ip_address=$addr" >> "$dhcpcd"
     
-    if [ "$dev" == "wlan0" ]; then
-     echo -e "#\tnohook wpa_supplicant" >> "$dhcpcd"
-    else
+    if [ "$devtype" == "AP" ]; then
      echo -e "\tnohook wpa_supplicant" >> "$dhcpcd"
+    else
+     echo -e "#\tnohook wpa_supplicant" >> "$dhcpcd"
     fi
     
    # Otherwise we need to update existing entry
-   # ...first find static ip_address line for the dev
+   # ...first find static ip_address line for the device
    else
 
     nextln=$((line+1))
@@ -670,15 +733,19 @@ if [ "$keyin" == "y" ]
       sed -i "$nextln""s/.*/\tstatic ip_address=$addr/" "$dhcpcd"
       if [ $? != 0 ]; then
        errnum=$?
-       echo -e "\n\n\e[91m** Unexpected sed error# $errnum: Could not update $dhcpcd\e[39m\n"
+       echo -e "\n\n\e[91m** Unexpected sed error# $errnum: Could not update $dhcpcd\e[0m\n"
        exit 1
       fi
       
       nextln=$((nextln+1))
-      sed -i "$nextln""s/.*/#\tnohook wpa_supplicant/" "$dhcpcd"
+      if [ "$devtype" != "AP" ]; then
+        sed -i "$nextln""s/.*/#\tnohook wpa_supplicant/" "$dhcpcd"
+      else
+        sed -i "$nextln""s/.*/\tnohook wpa_supplicant/" "$dhcpcd"
+      fi
       if [ $? != 0 ]; then
        errnum=$?
-       echo -e "\n\n\e[91m** Unexpected sed error# $errnum: Could not update $dhcpcd\e[39m\n"
+       echo -e "\n\n\e[91m** Unexpected sed error# $errnum: Could not update $dhcpcd\e[0m\n"
        exit 1
       fi
       
@@ -690,7 +757,8 @@ if [ "$keyin" == "y" ]
     fi  # end if updating existing
   fi    # end modifying dhcpcd
     
-  # check for duplicate IP addresses in dhcpcd.conf
+  # check we don't have duplicate IP addresses defined in dhcpcd.conf
+  # (should never be the case based on previous validation)
   count=$(grep -c "$addr" "$dhcpcd")
   if [ $count -gt  1 ]
    then

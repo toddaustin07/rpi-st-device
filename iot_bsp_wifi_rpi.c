@@ -1,14 +1,30 @@
 /*******************************************************************************************************************************************
+Enabling Raspberry Pi to run SmartThings direct-connected device applications
+    This file replaces iot_bsp_wifi_posix.c in the SmartThings Core SDK
+                           Version 0.20201217
+
+ Copyright 2020 Todd A. Austin
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+
+
 Description:
     This module enables Raspberry Pi-based IOT devices to connect with Samsung SmartThings direct connected device architecture.
     This file must be compiled as part of the SmartThings SDK for Direct Connect Devices.
-    This module replaces the equivalent posix module in the BSP porting directory of the SDK: iot_bsp_wifi_posix.c
+    This module replaces the posix wifi module in the BSP porting directory of the SDK:
+            ~/st-device-sdk/src/port/bsp/posic/iot_bsp_wifi_posix.c
     All remaining posix modules in the SDK BSP port files are used for Raspberry Pi builds, namely:
         iot_os_util_posix.c, iot_bsp_debug_posix.c, iot_bsp_nv_data_posix.c, iot_bsp_random_posix.c, iot_bsp_system_posix.c
-
-
-Author:     Todd Austin toddaustin07@yahoo.com
-Date:       December 2020
 
 With thanks to Kwang-Hui of Samsung who patiently answered my many questions during development.
 
@@ -32,6 +48,7 @@ With thanks to Kwang-Hui of Samsung who patiently answered my many questions dur
 #define SOFTAPCONTROLDIR "~/rpi-st-device/"
 #define SOFTAPSTARTFILE "softapstart"
 #define SOFTAPSTOPFILE  "softapstop"
+#define PRIORCONF "./__prior_hostapd.conf"
 
 #define configtag_ETH "USE_ETHERNET"
 #define configtag_AP "AP_SHUTDOWN"
@@ -49,7 +66,7 @@ With thanks to Kwang-Hui of Samsung who patiently answered my many questions dur
 
 extern int errno;
 
-/** DEFINE FUNCTIONS CONTAINED IN THIS FILE **/
+/** DECLARE FUNCTIONS CONTAINED IN THIS FILE **/
 
 int _perform_scan();
 void _parsemac(char *textptr, uint8_t *hexbuf);
@@ -71,6 +88,8 @@ bool _checkfortestdevfile();
 bool _checksoftapcontrol(char *dir);
 bool _switchmode(char *mode);
 bool _checkstartSoftAP(char *service);
+bool _restorehfile(char *backupfile);
+bool _restoreAP();
 
 /** DEFINE GLOBAL STATIC VARIABLES **/
 
@@ -86,6 +105,7 @@ static bool ManageAP = true;
 static bool ConcurrentWifi = false;
 static bool DualWifidev = false;
 static bool APWifionly = false;
+static bool APWifionlyRestore = false;
 static bool STWifionly = true;
 static bool AP_ON = false;
 static char PHYSWIFIDEV[5] = "phy0";
@@ -102,8 +122,8 @@ static int WIFI_INITIALIZED = false;
 /**********************************************************************************************************************
     Required BSP fuction: iot_bsp_wifi_init()
 
-    Purpose:    Validate & Initialize RPI wireless devices that will be needed; includes reading RPI configuration file
-                and initializing global static flags
+    Purpose:    Validate & Initialize RPI wireless devices that will be needed; includes retrieving wifi devices,
+                reading optional RPI configuration file, and initializing global static flags
 
     Input:      none
 
@@ -113,8 +133,6 @@ static int WIFI_INITIALIZED = false;
 iot_error_t iot_bsp_wifi_init()
 {
 
-    //char ssid[IOT_WIFI_MAX_SSID_LEN+1];
-
     IOT_INFO("[rpi] iot_bsp_wifi_init");
 
     if (!WIFI_INITIALIZED)  {
@@ -122,7 +140,7 @@ iot_error_t iot_bsp_wifi_init()
         if (!_getrpiconf(DEFAULTDIR)) {                           // read config file
 
             if (!_initDevNames()) {                     // initialize device names & info
-                IOT_ERROR("[rpi] Failure initializng interface device names");
+                IOT_ERROR("[rpi] Failure initializing interface device names");
                 return IOT_ERROR_CONN_OPERATE_FAIL;
             }
 
@@ -153,11 +171,11 @@ iot_error_t iot_bsp_wifi_init()
                 }
             }
 
-            // Both Station and AP devices
+            // Found both Station and AP devices
             if ((strcmp(wifi_sta_dev,"") != 0) && (strcmp(wifi_ap_dev,"") != 0)) {
 
                 DualWifidev=true;
-                ManageAP=true;
+                ManageAP=true;                          // default is to manage them up and down
                 ConcurrentWifi=false;                   // no Concurrent support for now
                 APWifionly=false;
                 STWifionly=false;
@@ -197,9 +215,9 @@ iot_error_t iot_bsp_wifi_init()
 }
 
 /*************************************************************************************
-Subroutine: _getrpiconf
+Subroutine: _getrpiconf (usage TBD)
 
-Purpose:    Read RPI configuration file and use parameters to initialize global values
+Purpose:    Read optional RPI config file and use parameters to initialize global values
 
 Input:      String pointer to configuration file name
 
@@ -300,6 +318,7 @@ bool _getrpiconf(char *currdir) {
     return true;
 }
 
+// Secret test file for forcing wifi device definitions (not used in production)
 bool _checkfortestdevfile() {
 
     #define TESTDEVFILE "./.dev"
@@ -368,11 +387,11 @@ bool _checkfortestdevfile() {
     }
 
 }
-/***************************************************************
+/****************************************************************
 
-Initial global variables for station, AP, and Ethernet devices
+Initialize global variables for station, AP, and Ethernet devices
 
-***************************************************************/
+****************************************************************/
 
 int _initDevNames() {
 
@@ -557,7 +576,7 @@ int _initDevNames() {
     return 1;
 
 }
-
+// Make sure start and stop script files are found
 bool _checksoftapcontrol(char *dir) {
 
 	FILE *pf;
@@ -635,6 +654,7 @@ bool _checksoftapcontrol(char *dir) {
 
 }
 
+// Parse parameter / value pairs from config file
 int _parseconfparm(char *parmstr, char *text) {
 
     char *subtxtptr;
@@ -663,6 +683,7 @@ int _parseconfparm(char *parmstr, char *text) {
 
 }
 
+// Validate network interface device is up
 int _isupIface(char *devname) {
 
     FILE *pf;
@@ -714,6 +735,7 @@ int _isupIface(char *devname) {
 
 }
 
+// check if wifi device is configured
 int _isconfWifi(char *devname, char *ssid) {
 
     FILE *pf;
@@ -797,11 +819,11 @@ iot_error_t iot_bsp_wifi_set_mode(iot_wifi_conf *conf)
 
         IOT_INFO("[rpi] Requested mode OFF");
 
-        if (!ConcurrentWifi && AP_ON) {
+        if (AP_ON && ManageAP) {
 
             _SoftAPControl("stop");                     // make sure hostapd/dnsmasq are stopped
 
-            if (STWifionly) {
+            if (STWifionly) {                           // if wlan0 only then switch mode back to station
                 if (! _switchmode("STA")) {
                     IOT_ERROR("[rpi] Failed to switch wireless modes");
                     return IOT_ERROR_CONN_OPERATE_FAIL;
@@ -809,13 +831,15 @@ iot_error_t iot_bsp_wifi_set_mode(iot_wifi_conf *conf)
             }
         }
 
+        _restoreAP();                                    // restore prior AP config if AP-only wifi
+
 		break;
 
 	case IOT_WIFI_MODE_SCAN:
 
         IOT_INFO("[rpi] Requested mode SCAN");
 
-        if ((!AP_ON) || (DualWifidev) || (APWifionly)) {
+        if (!AP_ON || DualWifidev || APWifionly) {
 
             scancount = _perform_scan();                        // do scan and check resulting AP count
 
@@ -849,6 +873,8 @@ iot_error_t iot_bsp_wifi_set_mode(iot_wifi_conf *conf)
             }
 
         }
+
+        _restoreAP();                                    // restore prior AP config if AP only wifi
 
         if (STWifionly) {
             usleep(SOFTAPWAITTIME);                         // Switching wlan0; give it some time to transition
@@ -893,58 +919,62 @@ iot_error_t iot_bsp_wifi_set_mode(iot_wifi_conf *conf)
 
         IOT_INFO("[rpi] Requested mode SoftAP");
 
-        if (ManageAP) {
+        if (STWifionly)
+            strcpy(SoftAPdev,wifi_sta_dev);
+        else
+            strcpy(SoftAPdev,wifi_ap_dev);
 
-            if (STWifionly)
-                strcpy(SoftAPdev,wifi_sta_dev);
-            else
-                strcpy(SoftAPdev,wifi_ap_dev);
-
-            if (!_setupHostapd(conf->ssid,conf->pass,SoftAPdev)) {               // Setup hostapd.conf file with ssid & password
-
-                IOT_ERROR("[rpi] Couldn't update hostapd.conf file");
-                return IOT_ERROR_CONN_OPERATE_FAIL;
-            }
-
-
-            if (!DualWifidev)
-                usleep(SOFTAPWAITTIME);                                 // pause to let wireless come up
-
-            if (STWifionly) {
-                if (!_switchmode("AP")) {
-                    IOT_ERROR("[rpi] Failed to switch wifi mode");
-                    return IOT_ERROR_CONN_OPERATE_FAIL;
-                }
-            }
-
-            usleep(SOFTAPWAITTIME);
-            usleep(SOFTAPWAITTIME);
-
-            if (!_SoftAPControl("start")) {                             // start hostapd & dnsmasq services
-                IOT_ERROR("[rpi] Problem starting SoftAP");
-                return IOT_ERROR_CONN_OPERATE_FAIL;
-            }
-
-            usleep(SOFTAPWAITTIME);                                 //pause to let hostapd & dnsmasq to come up
-
-            // Confirm hostapd has started
-            if (!_checkstartSoftAP("hostapd")) {
-                usleep(SOFTAPWAITTIME);
-                if (!_checkstartSoftAP("hostapd")) {
-                    IOT_ERROR("[rpi] SoftAP service failed to start");
-                    return IOT_ERROR_CONN_OPERATE_FAIL;
-                }
-            }
-
+        if (!_setupHostapd(conf->ssid,conf->pass,SoftAPdev)) {               // Setup hostapd.conf file with ssid & password
+            IOT_ERROR("[rpi] Couldn't update hostapd.conf file");
+            return IOT_ERROR_CONN_OPERATE_FAIL;
         }
+
+
+        if (!DualWifidev)
+            usleep(SOFTAPWAITTIME);                                 // pause to let wireless come up
+
+        if (STWifionly) {
+            if (!_switchmode("AP")) {
+                IOT_ERROR("[rpi] Failed to switch to AP wifi mode on device %s",SoftAPdev);
+                return IOT_ERROR_CONN_OPERATE_FAIL;
+            }
+        }
+
+        usleep(SOFTAPWAITTIME);
+        usleep(SOFTAPWAITTIME);
+
+        if (APWifionly) {
+            if (!_SoftAPControl("stop")) {                             // start hostapd & dnsmasq services
+                IOT_ERROR("[rpi] Problem stopping SoftAP");
+                return IOT_ERROR_CONN_OPERATE_FAIL;
+            }
+            usleep(SOFTAPWAITTIME);
+        }
+
+        if (!_SoftAPControl("start")) {                             // start hostapd & dnsmasq services
+            IOT_ERROR("[rpi] Problem starting SoftAP");
+                return IOT_ERROR_CONN_OPERATE_FAIL;
+            }
+
+        usleep(SOFTAPWAITTIME);                                 //pause to let hostapd & dnsmasq to come up
+
+        // Confirm hostapd has started
+        if (!_checkstartSoftAP("hostapd")) {
+            usleep(SOFTAPWAITTIME);
+            if (!_checkstartSoftAP("hostapd")) {
+                IOT_ERROR("[rpi] SoftAP service failed to start");
+                    return IOT_ERROR_CONN_OPERATE_FAIL;
+            }
+        }
+
+        if (APWifionly)
+            APWifionlyRestore=true;
 
 		IOT_DEBUG("wifi_init_softap finished.SSID:%s password:%s",
 				wifi_config.ap.ssid, wifi_config.ap.password);
 
-        if (STWifionly)
-            IOT_INFO("[rpi] AP Mode Started on device %s",wifi_sta_dev);
-        else
-            IOT_INFO("[rpi] AP Mode Started on device %s",wifi_ap_dev);
+
+        IOT_INFO("[rpi] AP Mode Started on device %s",SoftAPdev);
 
 		break;
 
@@ -1282,7 +1312,7 @@ int _setupHostapd(char*ssid, char *password, char *iface) {
 int _updateHfile(char *fname, char *ssid,char *password, char *iface) {
 
     #define TMPFILENAME "./__tempconf"
-    #define PRIORCONF "./__prior_hostapd.conf"
+
     FILE *fp1, *fp2, *fp3;
 
     #define MAX 100
@@ -1375,6 +1405,52 @@ int _updateHfile(char *fname, char *ssid,char *password, char *iface) {
 
 
     return(1);
+}
+
+bool _restorehfile(char *backupfile) {
+
+    FILE *pf;
+    char command[60];
+    int errnum;
+
+    sprintf(command,"sudo cp %s %s",backupfile,SOFTAPCONFFILE);
+
+    pf = popen(command, "r");
+    errnum = errno;
+
+    if (!pf) {
+        IOT_ERROR("[rpi] Failed to restore hostapd config file to prior state; error #%d",errnum);
+        return false;
+    } else {
+        pclose(pf);
+        return true;
+    }
+
+}
+
+// if full-time AP wifi, then restore prior config if necessary
+bool _restoreAP() {
+
+    if (AP_ON && APWifionly && APWifionlyRestore) {
+
+        if (!_SoftAPControl("stop")) {
+            IOT_ERROR("[rpi] Problem stopping SoftAP");
+            return false;
+        }
+
+        if (!_restorehfile(PRIORCONF)) {
+            IOT_ERROR("[rpi] Couldn't restore hostapd.conf");
+            return false;
+        }
+
+        if (!_SoftAPControl("start")) {
+            IOT_ERROR("[rpi] Problem re-starting SoftAP");
+            return false;
+        }
+
+        APWifionlyRestore=false;
+    }
+    return true;
 }
 
 int _switchSSID(char *dev, char *ssid) {

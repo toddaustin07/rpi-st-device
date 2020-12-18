@@ -1,13 +1,34 @@
 #!/bin/bash
 
+#################################################################################
+# Enabling Raspberry Pi to run SmartThings direct-connected device applications
+#                Master setup and configure bash script
+#                           Version 0.20201217
+#
+# Copyright 2020 Todd A. Austin
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.                        
+#
+#################################################################################
 
 # Global static variables
 rpimodel=""
 osrelease=0
-currdir=""
-stepsfile="./.stepstat"
+startdir=""
+
 rpipkgdir="$HOME/rpi-st-device"
 sdkpkgdir="$HOME/st-device-sdk-c"
+stepsfile="$rpipkgdir/.stepstat"
 devjsonfile="$sdkpkgdir/example/device_info.json"
 onbjsonfile="$sdkpkgdir/example/onboarding_config.json"
 
@@ -16,7 +37,7 @@ done="[done]"
 
 modellist=("a02082" "a22082" "a32082" "a020d3" "a03111" "b03111" "c03111")
 
-initstepst=("$todo" "$todo" "$todo" "$todo" "$todo" "$todo" "$todo" "$todo" "$todo")
+initstepst=("$todo" "$todo" "$todo" "$todo" "$todo" "$todo" "$todo" "$todo")
 stepst=()
 dispstepst=()
 menuselect=""
@@ -24,6 +45,7 @@ keyresp=""
 serialnum=""
 jsonvalue=""
 
+# Main menu display and input
 showmenu() {
 
  local i=0
@@ -48,15 +70,14 @@ showmenu() {
  echo -e "\t======================================================="
  echo -e "\t                         \e[1m\e[97mMENU\e[0m"
  echo -e "\t======================================================="
- echo -e "\t 1. Verify Pi system requirements \t\t${dispstepst[0]}"
- echo -e "\t 2. Install Pi enablement package \t\t${dispstepst[1]}"
- echo -e "\t 3. Install software dependencies \t\t${dispstepst[2]}"
- echo -e "\t 4. Clone Core SDK \t\t\t\t${dispstepst[3]}"
- echo -e "\t 5. Build Core SDK \t\t\t\t${dispstepst[4]}"
- echo -e "\t 6. Register devices in Developer Workspace \t${dispstepst[5]}"
- echo -e "\t 7. Build Example App \t\t\t\t${dispstepst[6]}"
- echo -e "\t 8. Configure Pi for SoftAP \t\t\t${dispstepst[7]}"
- echo -e "\t 9. On-board example device app\t\t\t${dispstepst[8]}"
+ echo -e "\t 1. Install Pi enablement package \t\t${dispstepst[0]}"
+ echo -e "\t 2. Install software dependencies \t\t${dispstepst[1]}"
+ echo -e "\t 3. Clone Core SDK \t\t\t\t${dispstepst[2]}"
+ echo -e "\t 4. Build Core SDK \t\t\t\t${dispstepst[3]}"
+ echo -e "\t 5. Register devices in Developer Workspace \t${dispstepst[4]}"
+ echo -e "\t 6. Build Example App \t\t\t\t${dispstepst[5]}"
+ echo -e "\t 7. Configure Pi for SoftAP \t\t\t${dispstepst[6]}"
+ echo -e "\t 8. On-board example device app\t\t\t${dispstepst[7]}"
  echo -e "\t======================================================="
  echo -en "\n\t\e[95mEnter a step number or q to quit:\e[0m  "
 
@@ -67,7 +88,7 @@ showmenu() {
   if [ "$instr" == "q" ]; then goodinput="yes"; fi
 
   if [[ $instr =~ $numtest ]]; then
-    if [[ $instr -ge 1  && $instr -le 10 ]]; then goodinput="yes"; fi
+    if [[ $instr -ge 1  && $instr -le 8 ]]; then goodinput="yes"; fi
   fi
  done
  echo
@@ -75,16 +96,12 @@ showmenu() {
 
 }
 
+# Write out step status file
 updatestatfile() {
 
-  cd "$currdir"
-
-  echo "${stepst[@]}" > $stepsfile
-  
-  if [[ "${stepst[1]} == $done" && "$currdir" != "$rpipkgdir" ]]; then
-      cp "$stepsfile" "$rpipkgdir"
-  fi
-
+  if [ "${stepst[0]}" == "$done" ]; then
+    echo "${stepst[@]}" > $stepsfile
+  fi  
  return 0
 }
 
@@ -102,8 +119,10 @@ getyesno() {
 
 }
 
+# Parse json file for item/value
+# Input $1=json filename, $2=item to search for; sets jsonvalue to found value
 getjsonitem() {
-  # Input $1=json filename, $2=item to search for; sets jsonvalue to found value  
+  
   filen=$1
   srchitem=$2
   local output
@@ -138,15 +157,16 @@ getjsonitem() {
     
 }
 
+# Execute git clone for given package URL
 clonepkg() {
 
   step=$1
   URL=$2
 
-  cd $HOME
+  cd "$HOME"
   output=$(git clone "$URL" 2>&1)
   errnum=$?
-  cd $currdir
+  cd "$rpipkgdir"
   
   if [ $errnum -eq 0 ]
     then
@@ -171,7 +191,7 @@ clonepkg() {
     else
       if [[ "$output" == *"already exists"* ]]
         then
-          echo -e "\n\t\e[0mIt looks like the package is already installed\n"
+          echo -e "\t\e[0m  >> It looks like the package is already installed\n"
           stepst[step]=$done
         else
           echo -e "\n\t\e[91mgit reported error number: $errnum\n"
@@ -182,6 +202,7 @@ clonepkg() {
   return 0
 }
 
+#Create QR code image file for device serial in SDK example dir
 createqr() {
 
   local retcode=1
@@ -224,7 +245,8 @@ createqr() {
 
 }
 
-step1() {
+# Check hardware model, Raspbian & Python versions
+verifysys() {
 
   local rpirevision
   local rpimodel
@@ -242,7 +264,7 @@ step1() {
       return 1
     else
       rpimodel=$(cat /proc/cpuinfo | grep "Model" | cut -f2 -d":")
-      echo -e "\n\t\e[92mModel:$rpimodel... OK"
+      echo -e "\t\e[92mModel:$rpimodel... OK"
   fi
 
   # Check what OS version we're running on
@@ -271,32 +293,36 @@ step1() {
   if [ ${verarr[1]} -ge 5 ]; then
     echo -e "\t\e[92m$pyver... OK\n\e[0m"
   else
-    echo -e "\n\t\e\91m\nYour PythonS version is too old; must be Version 3.5 or later\e[0m"
+    echo -e "\n\t\e\91m\nYour Python version is too old; must be Version 3.5 or later\e[0m"
     return 1
   fi
 
-  stepst[0]=$done
   return 0
 }
 
-step2() {
+########################################################################
+#              Functions for each step in the menu
+########################################################################
+# Install RPI enablement package
+step1() {
 
   echo -e "\n\t\e[97mInstalling Pi enablement package from github\n\e[0m"
 
-  clonepkg 1 "https://github.com/toddaustin07/rpi-st-device.git"
+  clonepkg 0 "https://github.com/toddaustin07/rpi-st-device.git"
 
-  if [[ "${stepst[1]}" == "$done" && "$currdir" != "$rpipkgdir" ]]; then
+  if [[ "${stepst[0]}" == "$done" && "$startdir" != "$rpipkgdir" ]]; then
       echo -e "\t\e[93m>> From now on, you should run this setup script from the"
       echo -e "\t   \e[1m$rpipkgdir\e[22m directory\e[0m"
       echo -e "\t\e[0m>> You can continue for now"
+      if [ -f "$HOME/mastersetup" ]; then rm "$HOME/mastersetup"; fi
       cd $rpipkgdir
-      currdir="rpipkgdir"
   fi
   
   return 0
 }
 
-step3() {
+# Install all software libs required by SDK
+step2() {
 
   echo -e "\n\t\e[97mInstalling software dependencies - watch for errors...\n\e[0m"
 
@@ -309,22 +335,24 @@ step3() {
     then
       echo -e "\n\t\e[93m>>Manually install your missing dependencies and then try again\e[0m\n"
     else
-      stepst[2]=$done
+      stepst[1]=$done
   fi
 
   return 0
 }
 
-step4() {
+# Clone SmartThings core SDK
+step3() {
 
   echo -e "\n\t\e[97mCloning SmartThings Core SDK from github\n\e[0m"
 
-  clonepkg 3 "https://github.com/SmartThingsCommunity/st-device-sdk-c.git"
+  clonepkg 2 "https://github.com/SmartThingsCommunity/st-device-sdk-c.git"
 
   return 0
 }
 
-step5() {
+# Build the Core SDK
+step4() {
 
   echo -e "\n\t\e[97mBuilding SmartThings Core SDK\n\e[0m"
  
@@ -337,7 +365,7 @@ step5() {
   if [ $errnum -eq 0 ]; then
     if [[ -f output/libiotcore.a ]]; then
       echo -e "\n\t\e[92mCore SDK built: ~/st-device-sdk-c/output/libiotcore.a\e[0m\n"
-      stepst[4]=$done
+      stepst[3]=$done
     else
       echo -e "\n\t\e[91mSomething seems to have gone wrong.  Correct errors and retry.\e[0m\n"
     fi  
@@ -348,7 +376,8 @@ step5() {
   return 0
 }
 
-step6() {
+# Perform Developer Workspace tasks and obtain needed json files
+step5() {
   
   local cmdoutput=()
   local errnum=0
@@ -377,7 +406,7 @@ step6() {
   echo -e "\tBegin with section \e[1m2.1\e[22m 'Create a new project' - continuing to and including"
   echo -e "\tsection \e[1m2.5\e[22m 'Deploy Your Device to Test'"
   
-  echo -en "\n\t\e[95mPress any key once you have competed those steps\e[0m"
+  echo -en "\n\t\e[95mPress any key once you have completed those steps\e[0m"
   read -rsn1 keyin
   echo
   
@@ -455,7 +484,7 @@ step6() {
     if [[ $errnum -eq 0 && "$jsonvalue" != "NAME" ]]; then
 
       echo -e "\t\e[92m$onbjsonfile verified\e[0m"
-      stepst[5]=$done
+      stepst[4]=$done
                 
     else
       echo -e "\n\t\e[91mSorry, but onboarding_config.json doesn't look updated\e[0m"
@@ -466,7 +495,8 @@ step6() {
       
 }
 
-step7() {
+# Build the SDK example application
+step6() {
  
   echo -e "\n\t\e[97mBuilding example application\n\e[0m"
  
@@ -488,7 +518,7 @@ step7() {
       createqr
       
       if [ $? == 0 ]; then
-        stepst[6]=$done
+        stepst[5]=$done
       fi
     else
       echo -e "\n\t\e[93mCorrect source of errors and try again\e[0m"
@@ -498,7 +528,8 @@ step7() {
   fi
 }
 
-step8() {
+# Configure system for SoftAP - call SoftAPconfig bash script
+step7() {
  
   cd "$rpipkgdir"
   
@@ -515,7 +546,7 @@ step8() {
        ;;
      0)
        echo -e "\n\t\e[92mSoftAP Successfully Configured\e[0m"
-       stepst[7]=$done
+       stepst[6]=$done
        ;;
      1)
        echo -e "\n\t\e[93mSoftAP configuration not complete\e[0m"
@@ -524,7 +555,8 @@ step8() {
   
 } 
 
-step9() {
+# Onboard the example device
+step8() {
   
   echo -e "\n\t\e[97mPrepare to onboard your device\e[0m"
   echo -e "\n\tOpen the SmartThings mobile app and begin the add-device"
@@ -547,7 +579,7 @@ step9() {
       
       ./example &
       
-      stepst[8]=$done
+      stepst[7]=$done
       
       menuselect="q"
       
@@ -568,7 +600,7 @@ step9() {
 
 # Save directory we're running from
 
-currdir=$(pwd)
+startdir=$(pwd)
 
 # Load step status from file if exists, otherwise initialize with defaults
 if [ -f $stepsfile ]; then
@@ -578,11 +610,21 @@ else
 fi
 
 # If RPI package is installed, make sure we're running in that directory
-if [ "${stepst[1]}" == "$done" ]; then
-  if [[ "$currdir" != "$rpipkgdir" ]]; then
+if [ "${stepst[0]}" == "$done" ]; then
+  if [[ "$startdir" != "$rpipkgdir" ]]; then
     cd "$rpipkgdir"
-    currdir="$rpipkgdir"
   fi
+fi
+
+echo -e "\n\t\e[97mInstall and configure Raspberry Pi support for"
+echo -e "\tSamsung SmartThings direct-connected device applications\e[0m"
+
+echo -e "\n\t\e[4mCHECKING YOUR SYSTEM:\e[0m"
+
+# Check hardware, Raspbian, and Python versions
+verifysys
+if [ $? -ne 0 ]; then
+  exit 1;
 fi
 
 #####################################
@@ -644,9 +686,6 @@ while [ "$menuselect" != "q" ]
               8)
                 step8
                 ;;
-              9)
-                step9
-                ;;
               *)
                 echo -e "\nShould never get here"
                 ;;
@@ -656,7 +695,7 @@ while [ "$menuselect" != "q" ]
   done
 
 
-# Save step status to a file
+# Save step status to a file in ~/rpi-st-devices
 
 updatestatfile
 
