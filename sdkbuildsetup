@@ -14,5 +14,6 @@ cp ~/rpi-st-device/RPIstdkconfig stdkconfig
 cp ~/rpi-st-device/softapstart ~/st-device-sdk-c/example/softapstart
 cp ~/rpi-st-device/softapstop ~/st-device-sdk-c/example/softapstop
 
-cd "$curdir"
+cp ~/rpi-st-device/sdkbuildsetup ~/st-device-sdk-c/sdkbuildsetup
+
 

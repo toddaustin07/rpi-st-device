@@ -60,10 +60,11 @@ wlan0type=""
 devtype=""
  
 # Config file names
-dhcpcd=/etc/dhcpcd.conf
-hostapd=/etc/hostapd/hostapd.conf
-hostapdconf=/etc/default/hostapd
-dnsmasq=/etc/dnsmasq.conf
+dhcpcd="/etc/dhcpcd.conf"
+dhcpcdap="/etc/dhcpcd_ap.conf"
+hostapd="/etc/hostapd/hostapd.conf"
+hostapdconf="/etc/default/hostapd"
+dnsmasq="/etc/dnsmasq.conf"
 
 # This function displays a string ($1) for ($2) # of repetitions
 disp_sep() {
@@ -306,24 +307,23 @@ update-rc.d dnsmasq disable
 
 # Get the initial default config files
 # (there isn't any original hostapd.conf file)
-if [ -f "/etc/hostapd/hostapd.conf" ]
+if [ -f "$hostapd" ]
  then
-  cp /etc/hostapd/hostapd.conf /etc/hostapd/hostapd.SAVEDconf
+  cp "$hostapd" /etc/hostapd/hostapd_saved.conf
 fi
-cp $currdir/RPIhostapd.conf /etc/hostapd/hostapd.conf
+cp RPIhostapd.conf "$hostapd"
 
 
-if [ -f "/etc/dnsmasq.conf" ]
+if [ -f "$dnsmasq" ]
  then
-  if [ -f "etc/dnsmasq.ORIGconf" ]
+  if [ -f "/etc/dnsmasq.ORIGconf" ]
    then
-    cp /etc/dnsmasq.conf /etc/dnsmasq.SAVEDconf
+    cp "$dnsmasq" /etc/dnsmasq_saved.conf
    else
-    cp /etc/dnsmasq.conf /etc/dnsmasq.ORIGconf
+    cp "$dnsmasq" /etc/dnsmasq.ORIGconf
   fi
 fi
-cp $currdir/RPIdnsmasq.conf /etc/dnsmasq.conf
-
+cp RPIdnsmasq.conf "$dnsmasq"
 
 # Declare hostapd config file location
 
@@ -678,36 +678,26 @@ if [ "$keyin" == "y" ]
 
   fi
 
-  # Set up dhcpcd.conf file
+  # Set up dhcpcd_ap.conf file
 
-  echo -en "\n\e[97mUpdating dhcpcd configuration...\e[0m"
+  echo -en "\n\e[97mUpdating dhcpcd AP configuration...\e[0m"
 
   if [ -f "$dhcpcd" ]; then
-   if [ -f "/etc/ORIG_dhcpcd.conf" ]; then
-    cp "$dhcpcd" "/etc/SAVED_dhcpcd.conf"
-   else
-    cp "$dhcpcd" "/etc/ORIG_dhcpcd.conf"
-   fi
+    cp "$dhcpcd" "$dhcpcdap"
   else
    echo -e "\n\e[91m/etc/dhcpcd.conf is not found; cannot continue"
    exit -1
   fi
   
   # Check to see if there is already an entry in the file for this dev
-  line=$(sed -n "/interface $dev/=" "$dhcpcd")
-
+  line=$(sed -n "/interface $dev/=" "$dhcpcdap")
   # If not, then append the new config lines
   if [ -z "$line" ]
    then
 
-    echo -e "\ninterface $dev" >> "$dhcpcd"
-    echo -e "\tstatic ip_address=$addr" >> "$dhcpcd"
-    
-    if [ "$devtype" == "AP" ]; then
-     echo -e "\tnohook wpa_supplicant" >> "$dhcpcd"
-    else
-     echo -e "#\tnohook wpa_supplicant" >> "$dhcpcd"
-    fi
+    echo -e "\ninterface $dev" >> "$dhcpcdap"
+    echo -e "\tstatic ip_address=$addr" >> "$dhcpcdap"    
+    echo -e "\tnohook wpa_supplicant" >> "$dhcpcdap"
     
    # Otherwise we need to update existing entry
    # ...first find static ip_address line for the device
@@ -715,7 +705,7 @@ if [ "$keyin" == "y" ]
 
     nextln=$((line+1))
 
-    result=$(grep -n "static ip_address" "$dhcpcd" | cut -f1 -d:)
+    result=$(grep -n "static ip_address" "$dhcpcdap" | cut -f1 -d:)
     readarray -t array <<< "$result"
 
     i=0
@@ -730,22 +720,18 @@ if [ "$keyin" == "y" ]
 
     if [ $fflag -eq 1 ]
      then
-      sed -i "$nextln""s/.*/\tstatic ip_address=$addr/" "$dhcpcd"
+      sed -i "$nextln""s/.*/\tstatic ip_address=$addr/" "$dhcpcdap"
       if [ $? != 0 ]; then
        errnum=$?
-       echo -e "\n\n\e[91m** Unexpected sed error# $errnum: Could not update $dhcpcd\e[0m\n"
+       echo -e "\n\n\e[91m** Unexpected sed error# $errnum: Could not update $dhcpcdap\e[0m\n"
        exit 1
       fi
       
       nextln=$((nextln+1))
-      if [ "$devtype" != "AP" ]; then
-        sed -i "$nextln""s/.*/#\tnohook wpa_supplicant/" "$dhcpcd"
-      else
-        sed -i "$nextln""s/.*/\tnohook wpa_supplicant/" "$dhcpcd"
-      fi
+      sed -i "$nextln""s/.*/\tnohook wpa_supplicant/" "$dhcpcdap"
       if [ $? != 0 ]; then
        errnum=$?
-       echo -e "\n\n\e[91m** Unexpected sed error# $errnum: Could not update $dhcpcd\e[0m\n"
+       echo -e "\n\n\e[91m** Unexpected sed error# $errnum: Could not update $dhcpcdap\e[0m\n"
        exit 1
       fi
       
@@ -753,28 +739,24 @@ if [ "$keyin" == "y" ]
       echo -e "\n\n\t\e[93m** Missing contents in dhcpcd.conf; please edit manually **"
       echo -e "\n\t\e[33mPress any key to start editor\e[39m"
       read -rsn1 keyin
-      nano "$dhcpcd"
+      nano "$dhcpcdap"
     fi  # end if updating existing
   fi    # end modifying dhcpcd
     
   # check we don't have duplicate IP addresses defined in dhcpcd.conf
   # (should never be the case based on previous validation)
-  count=$(grep -c "$addr" "$dhcpcd")
+  count=$(grep -c "$addr" "$dhcpcdap")
   if [ $count -gt  1 ]
    then
-    echo -e "\n\t\e[91m** You have duplicate IP addresses in dhcpcd.conf"
+    echo -e "\n\t\e[91m** You have duplicate IP addresses in dhcpcd_ap.conf"
     echo -e "\n\t\e[39m  Edit manually to resolve conflict"
     echo -en "\t\e[33m   Press any key to start editor...\e[39m"
     read -rsn1 keyin
-    nano "$dhcpcd"
+    nano "$dhcpcdap"
     echo
    else
     echo -e "\e[92mCOMPLETE\e[0m"
   fi
-
-  echo -en "\e[97mRestarting dhcpcd service...\e[0m"
-  systemctl restart dhcpcd
-  echo -e "\e[92mCOMPLETE\e[0m"
 
   # Configure hostapd and dnsmasq config files
 
@@ -813,14 +795,16 @@ if [ "$keyin" == "y" ]
    then
     echo
     echo -e "\e[93mSwitching to wireless Access Point mode"
-    sed -i "/nohook wpa_supplicant/c\\\tnohook wpa_supplicant" "$dhcpcd"
+    cp "$dhcpcd" /etc/dhcpcd_tmp.conf
+    cp "$dhcpcdap" "$dhcpcd"
     systemctl restart dhcpcd
     echo -e "\n\e[0m  * Starting hostapd; \e[97m\e[1mCtrl-c\e[22m to exit hostapd when done *\e[0m"
     echo
     /usr/sbin/hostapd "$hostapd"
     echo
     echo -e "\e[93mSwitching back to wireless client mode"
-    sed -i "/nohook wpa_supplicant/c\\#\tnohook wpa_supplicant" "$dhcpcd"
+    cp /etc/dhcpcd_tmp.conf "$dhcpcd"
+    rm /etc/dhcpcd_tmp.conf
     systemctl restart dhcpcd
   fi
 else

@@ -49,6 +49,9 @@ With thanks to Kwang-Hui of Samsung who patiently answered my many questions dur
 #define SOFTAPSTARTFILE "softapstart"
 #define SOFTAPSTOPFILE  "softapstop"
 #define PRIORCONF "./__prior_hostapd.conf"
+#define DHCPCDCONF "/etc/dhcpcd.conf"
+#define DHCPCDSAVE "/etc/dhcpcd_saved.conf"
+#define DHCPCD_AP "/etc/dhcpcd_ap.conf"
 
 #define configtag_ETH "USE_ETHERNET"
 #define configtag_AP "AP_SHUTDOWN"
@@ -90,6 +93,8 @@ bool _switchmode(char *mode);
 bool _checkstartSoftAP(char *service);
 bool _restorehfile(char *backupfile);
 bool _restoreAP();
+int _pipecommand(char *command);
+int _checkexistfile(char *filename);
 
 /** DEFINE GLOBAL STATIC VARIABLES **/
 
@@ -132,6 +137,7 @@ static int WIFI_INITIALIZED = false;
 ***********************************************************************************************************************/
 iot_error_t iot_bsp_wifi_init()
 {
+    int errnum;
 
     IOT_INFO("[rpi] iot_bsp_wifi_init");
 
@@ -143,6 +149,13 @@ iot_error_t iot_bsp_wifi_init()
                 IOT_ERROR("[rpi] Failure initializing interface device names");
                 return IOT_ERROR_CONN_OPERATE_FAIL;
             }
+
+            //Check Ethernet exists
+
+            if (Ethernet)
+                IOT_INFO("[rpi] Ethernet connection available: %s",eth_dev);
+            else
+                IOT_INFO("[rpi] No Ethernet");
 
             //Station device only
             if ((strcmp(wifi_sta_dev,"") != 0) && (strcmp(wifi_ap_dev,"") == 0)) {
@@ -166,8 +179,8 @@ iot_error_t iot_bsp_wifi_init()
                     STWifionly=false;
                     IOT_INFO("[rpi] Wifi AP device %s found",wifi_ap_dev);
                 } else {
-                    IOT_ERROR("[rpi] No station device available");
-                    return IOT_ERROR_CONN_OPERATE_FAIL;
+                    IOT_ERROR("[rpi] Invalid configuration: must have Ethernet with full time AP wifi");
+                    return IOT_ERROR_NET_INVALID_INTERFACE;
                 }
             }
 
@@ -184,26 +197,22 @@ iot_error_t iot_bsp_wifi_init()
 
         }
 
-        // We have wireless devices, now check Ethernet
-
-        if (Ethernet) {
-
-            if (_isupIface(eth_dev))
-                IOT_INFO("[rpi] Ethernet connection available: %s",eth_dev);
-
-            else {
-
-                IOT_ERROR("[rpi] Ethernet not connected");
-                return IOT_ERROR_NET_INVALID_INTERFACE;
-            }
-
-        }
-        else
-            IOT_INFO("[rpi] No Ethernet");
-
-		if (!_checksoftapcontrol(SOFTAPCONTROLDIR)) {		// Make sure SoftAP control scripts are present
-			IOT_ERROR("Missing SoftAP control scripts");
+        // Make sure SoftAP control scripts are present
+		if (!_checksoftapcontrol(SOFTAPCONTROLDIR)) {
+			IOT_ERROR("[rpi] Missing SoftAP control scripts");
 			return IOT_ERROR_CONN_OPERATE_FAIL;
+        }
+
+        // Make sure dhcpcd AP config file exists
+        if (STWifionly) {
+            errnum = _checkexistfile(DHCPCD_AP);
+            if (errnum != 0) {
+                if (errnum == ENOENT)
+                    IOT_ERROR("[rpi] Missing dhcpcd AP config file");
+                else
+                    IOT_ERROR("[rpi] Cannot verify dhcpcd AP config file");
+                return IOT_ERROR_CONN_OPERATE_FAIL;
+            }
         }
     }
 
@@ -579,7 +588,6 @@ int _initDevNames() {
 // Make sure start and stop script files are found
 bool _checksoftapcontrol(char *dir) {
 
-	FILE *pf;
 	char filename[60];
 	int okflag=0;
 	int errnum;
@@ -588,25 +596,20 @@ bool _checksoftapcontrol(char *dir) {
 
 	strcpy(filename,dir);
 	strcat(filename,SOFTAPSTARTFILE);
-	pf = fopen(filename,"r");
-    if (pf) {
-		fclose(pf);
+	errnum = _checkexistfile(filename);
+
+	if (errnum == 0) {
 		strcpy(SOFTAPSTART,filename);
         okflag++;
     } else {
-
-        errnum=errno;
 		if (errnum == ENOENT) {
 	 		strcpy(filename,"./");
 			strcat(filename,SOFTAPSTARTFILE);
-			pf = fopen(filename,"r");
-			if (pf) {
-				fclose(pf);
+			errnum = _checkexistfile(filename);
+			if (errnum == 0) {
 				strcpy(SOFTAPSTART,filename);
 				okflag++;
 			} else {
-
-				errnum=errno;
 				if (errnum == ENOENT)
 					IOT_ERROR("[rpi] SoftAP start script not found");
 				else
@@ -620,24 +623,21 @@ bool _checksoftapcontrol(char *dir) {
 
 	strcpy(filename,dir);
 	strcat(filename,SOFTAPSTOPFILE);
-	pf = fopen(filename,"r");
-	if (pf) {
-		fclose(pf);
+	errnum = _checkexistfile(filename);
+
+	if (errnum == 0) {
 		strcpy(SOFTAPSTOP,filename);
 		okflag++;
 	} else {
 
-		errnum=errno;
 		if (errnum == ENOENT) {
 			strcpy(filename,"./");
 			strcat(filename,SOFTAPSTOPFILE);
-			pf = fopen(filename,"r");
-			if (pf) {
-				fclose(pf);
+			errnum = _checkexistfile(filename);
+			if (errnum == 0) {
 				strcpy(SOFTAPSTOP,filename);
 				okflag++;
 			} else {
-				errnum=errno;
 				if (errnum == ENOENT)
 					IOT_ERROR("[rpi] SoftAP stop script not found");
 				else
@@ -791,6 +791,21 @@ int _isconfWifi(char *devname, char *ssid) {
 
 }
 
+int _checkexistfile(char *filename) {
+
+    FILE *pf;
+    int errnum;
+
+    pf = fopen(filename,"r");
+    errnum=errno;
+    if (! pf)
+        return errnum;
+    else {
+        fclose(pf);
+        return 0;
+    }
+}
+
 /*******************************************************************************************
     Required BSP fuction: iot_bsp_wifi_set_mode()
 
@@ -860,6 +875,9 @@ iot_error_t iot_bsp_wifi_set_mode(iot_wifi_conf *conf)
 
         IOT_INFO("[rpi] Requested mode STATION");
 
+        if (!WIFI_INITIALIZED)
+            return IOT_ERROR_CONN_CONNECT_FAIL;
+
         if (AP_ON && ManageAP) {                                          // Turn off SoftAP
 
             if (!_SoftAPControl("stop"))
@@ -918,6 +936,9 @@ iot_error_t iot_bsp_wifi_set_mode(iot_wifi_conf *conf)
 	case IOT_WIFI_MODE_SOFTAP:
 
         IOT_INFO("[rpi] Requested mode SoftAP");
+
+        if (!WIFI_INITIALIZED)
+            return IOT_ERROR_CONN_CONNECT_FAIL;
 
         if (STWifionly)
             strcpy(SoftAPdev,wifi_sta_dev);
@@ -1141,38 +1162,60 @@ bool _checkstartSoftAP(char *service) {
 
 bool _switchmode(char *mode) {
 
-    #define DHCPCDCONF "/etc/dhcpcd.conf"
-
-    FILE *pf;
     int errnum=0;
+    int accumerr=0;
     char command[100];
 
-    if (strcmp(mode,"AP") == 0)
-        strcpy(command,"sudo sed -i \"/^#\tnohook wpa_supplicant/c\\\tnohook wpa_supplicant\" ");
-    else
-        strcpy(command,"sudo sed -i \"/^\tnohook wpa_supplicant/c\\#\tnohook wpa_supplicant\" ");
+    if (strcmp(mode,"AP") == 0) {
+        sprintf(command,"sudo cp %s %s",DHCPCDCONF,DHCPCDSAVE);
+        errnum = _pipecommand(command);
+        accumerr = accumerr+errnum;
+        sprintf(command, "sudo cp %s %s",DHCPCD_AP,DHCPCDCONF);
+        errnum = _pipecommand(command);
+        accumerr = accumerr+errnum;
+    } else if (strcmp(mode,"STA") == 0) {
+        sprintf(command,"sudo cp %s %s",DHCPCDSAVE,DHCPCDCONF);
+        errnum = _pipecommand(command);
+        accumerr = accumerr+errnum;
+    } else {
 
+        IOT_ERROR("[rpi] Unknown mode switch request '%s'",mode);
+        return false;
+    }
 
-    strcat(command,DHCPCDCONF);
-
-    pf = popen(command, "r");
-    if (pf) {
-        pclose(pf);
+    if (accumerr == 0) {
 
         strcpy(command,"sudo systemctl restart dhcpcd");
-        pf = popen(command, "r");
-        if (pf) {
-            pclose(pf);
-            return true;
-        } else {
-            errnum=errno;
+        errnum = _pipecommand(command);
+        if (errnum != 0) {
             IOT_ERROR("[rpi] Failed to perform dhcpcd restart; error #%d",errnum);
+            if (strcmp(mode,"AP") == 0) {
+                sprintf(command,"sudo cp %s %s",DHCPCDSAVE,DHCPCDCONF);
+                _pipecommand(command);
+            }
             return false;
         }
     } else {
-        errnum=errno;
-        IOT_ERROR("[rpi] Failed to update dhcpcd.conf; error #%d",errnum);
+        IOT_ERROR("[rpi] Failed to switch dhcpcd config files");
         return false;
+    }
+
+    return true;
+}
+
+int _pipecommand(char *command) {
+
+    FILE *pf;
+    int errnum;
+
+    pf = popen(command,"r");
+    errnum=errno;
+    if (!pf) {
+        IOT_ERROR("[rpi] OS command failed; error #%d",errnum);
+        return errnum;
+    } else {
+        pclose(pf);
+        return 0;
     }
 
 }
@@ -1750,44 +1793,3 @@ unsigned int _htoi (const char *ptr) {
 
 }
 
-
-
-/*
-iot_error_t iot_bsp_wifi_get_mac(struct iot_mac *wifi_mac)
-{
-	struct ifreq ifr;
-	int sockfd = 0;
-	iot_error_t err = IOT_ERROR_NONE;
-
-	sockfd = _create_socket();
-	if (sockfd < 0)
-		return IOT_ERROR_READ_FAIL;
-
-	strncpy(ifr.ifr_name, IFACE_NAME, IF_NAMESIZE);
-	if (ioctl(sockfd, SIOCGIFHWADDR, &ifr) < 0) {
-		IOT_ERROR("ioctl(%d, %s): 0x%x", errno, strerror(errno), SIOCGIFHWADDR);
-		err = IOT_ERROR_READ_FAIL;
-		goto mac_out;
-	}
-	memcpy(wifi_mac->addr, ifr.ifr_hwaddr.sa_data, sizeof(wifi_mac->addr));
-
-mac_out:
-	close(sockfd);
-	return err;
-}
-
-*/
-
-/*
-static int _create_socket()
-{
-    int sockfd = 0;
-
-    sockfd = socket(AF_INET, SOCK_DGRAM, 0);
-    if (sockfd == -1) {
-        IOT_ERROR("Can't get socket (%d, %s)", errno, strerror(errno));
-        return -errno;
-    }
-    return sockfd;
-}
-*/
