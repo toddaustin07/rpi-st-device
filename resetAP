@@ -4,7 +4,7 @@ echo -e "\nhostapd and dnsmasq services stopped"
 if [ -f "/etc/dhcpcd_saved.conf" ]; then
   sudo cp /etc/dhcpcd_saved.conf /etc/dhcpcd.conf
   echo -e "saved dhcpcd.conf restored"
-  sudo systmctl restart dhcpcd
+  sudo systemctl restart dhcpcd
   echo -e "dhcpcd service restarted"
   echo 
   exit 0
