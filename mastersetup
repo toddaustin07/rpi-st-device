@@ -381,6 +381,7 @@ step5() {
   
   local cmdoutput=()
   local errnum=0
+  local i=0
 
   # Save existing json files
   
@@ -426,12 +427,10 @@ step5() {
   
     cd "$sdkpkgdir/tools/keygen"
     output=$(python3 stdk-keygen.py --firmware switch_example_001)
-    #output="output"
     errnum=$?
   
     echo -e "-------------------------------------------------------"
     echo "$output"
-    #cat output
     echo -e "-------------------------------------------------------"
   
     if [ $errnum -eq 0 ]; then
@@ -439,10 +438,10 @@ step5() {
       read -rsn1 keyin
       echo
     
-      while read line; do
+      while read -r line; do
         cmdoutput[i]="$line"
         i=$((i+1))
-      done < $output
+      done <<< "$output"
 
       i=0
       while [ "${cmdoutput[$i]}" != "Serial Number:" ]; do i=$((i+1)); done
@@ -690,6 +689,9 @@ while [ "$menuselect" != "q" ]
                 echo -e "\nShould never get here"
                 ;;
             esac
+        
+            updatestatfile
+        
         fi
     fi
   done
