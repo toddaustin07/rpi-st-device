@@ -171,13 +171,14 @@ iot_error_t iot_bsp_wifi_init()
             // AP device only
             if ((strcmp(wifi_sta_dev,"") == 0) && (strcmp(wifi_ap_dev,"") != 0)) {
 
+                IOT_INFO("[rpi] Wifi AP device %s found",wifi_ap_dev);
                 if (Ethernet) {
                     APWifionly=true;
                     ManageAP=false;                             // leave AP always on
                     ConcurrentWifi=false;
                     DualWifidev=false;
                     STWifionly=false;
-                    IOT_INFO("[rpi] Wifi AP device %s found",wifi_ap_dev);
+
                 } else {
                     IOT_ERROR("[rpi] Invalid configuration: must have Ethernet with full time AP wifi");
                     return IOT_ERROR_NET_INVALID_INTERFACE;
@@ -945,7 +946,7 @@ iot_error_t iot_bsp_wifi_set_mode(iot_wifi_conf *conf)
         else
             strcpy(SoftAPdev,wifi_ap_dev);
 
-        if (!_setupHostapd(conf->ssid,conf->pass,SoftAPdev)) {               // Setup hostapd.conf file with ssid & password
+        if (!_setupHostapd(conf->ssid,conf->pass,SoftAPdev)) {       // Setup hostapd.conf file with ssid & password
             IOT_ERROR("[rpi] Couldn't update hostapd.conf file");
             return IOT_ERROR_CONN_OPERATE_FAIL;
         }
@@ -964,14 +965,16 @@ iot_error_t iot_bsp_wifi_set_mode(iot_wifi_conf *conf)
         usleep(SOFTAPWAITTIME);
         usleep(SOFTAPWAITTIME);
 
+        // If Full-time AP, then shut down current SoftAP config (it was saved prior)
         if (APWifionly) {
-            if (!_SoftAPControl("stop")) {                             // start hostapd & dnsmasq services
+            if (!_SoftAPControl("stop")) {
                 IOT_ERROR("[rpi] Problem stopping SoftAP");
                 return IOT_ERROR_CONN_OPERATE_FAIL;
             }
             usleep(SOFTAPWAITTIME);
         }
 
+        // Start up SoftAP with new config
         if (!_SoftAPControl("start")) {                             // start hostapd & dnsmasq services
             IOT_ERROR("[rpi] Problem starting SoftAP");
                 return IOT_ERROR_CONN_OPERATE_FAIL;
@@ -988,6 +991,7 @@ iot_error_t iot_bsp_wifi_set_mode(iot_wifi_conf *conf)
             }
         }
 
+        // Reminder flag to restore prior AP config after we're done
         if (APWifionly)
             APWifionlyRestore=true;
 
@@ -1604,7 +1608,7 @@ int _perform_scan()  {
     if (pf) {
 
         // Read each line output from system command
-        while (fgets(data,maxdatasize,pf)) {
+        while ((fgets(data,maxdatasize,pf)) && (ap_num < (IOT_WIFI_MAX_SCAN_RESULT-1))) {
 
             lineptr = strstr(data,"BSS ");                          // Start of new Mac Address? (BSS)
             if (lineptr) {
