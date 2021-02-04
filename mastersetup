@@ -35,7 +35,7 @@ onbjsonfile="$sdkpkgdir/example/onboarding_config.json"
 todo="[to-do]"
 done="[done]"
 
-modellist=("a02082" "a22082" "a32082" "a020d3" "a03111" "b03111" "c03111")
+modellist=("a02082" "a22082" "a32082" "a020d3" "a03111" "b03111" "c03111" "b03112" "c03111" "c03112")
 
 initstepst=("$todo" "$todo" "$todo" "$todo" "$todo" "$todo" "$todo" "$todo")
 stepst=()
