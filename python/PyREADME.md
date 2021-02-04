@@ -14,7 +14,7 @@ Within your python project directory:
 python3 -m pip3 install -r requirements.txt
 ```
 ## Step 3: Get core SDK library file: libiotcore.a
-Either use the pre-built one supplied in this directory, or one you've built yourself
+Either use the pre-built one supplied in this package python directory, or one you've built yourself from ~/st-device-sdk-c/output
 
 ## Step 4: Create Python library for core SDK
 ```
@@ -34,3 +34,11 @@ Provisioning files:  DeviceID, WifiProvStatus, ServerURL, ServerPort, Label, Iot
 ```
 python main.py
 ```
+
+## Creating Python device apps
+You can use the main.py as a template.  
+Be sure that the shared object file you build as well as libiocore.a is in your lib path for python to find
+IMPORT STDevice.py in your python app (note that if you are using an IDE, it will complain about the libraries not being found; ignore)
+Use the STDevice class to access the SmartThings API
+If you need to define additional callbacks, you must also declare them in iotcorebuild.py (around line 205 with the others)
+Not every SDK API is provided at this time, but the base ones are there.  If you need others, you can probably extend the class fairly easily
