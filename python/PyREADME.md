@@ -6,7 +6,6 @@ First, proceed with the complete setup for this RPI setup package (mastersetup) 
 Before you proceed with Python setup, be sure to exit the C example device app (but don't delete the device from SmartThings mobile app).
 
 ## Step 1: Create a python project directory and virtual environment (recommended, but not mandatory) and activate it
-Within your python project directory:
 ```
   mkdir /home/pi/myproj
   cd /home/pi/myproj
