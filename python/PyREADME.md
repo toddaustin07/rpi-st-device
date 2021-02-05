@@ -43,4 +43,4 @@ python main.py
 - Add 'from STDevice import \*' to your python script (note that if you are using an IDE, it will complain about the libraries not being found; ignore).
 - Use the STDevice class to invoke the SmartThings API.
 - If you need to define additional callbacks, you *must* also declare them in iotcorebuild.py (around line 205 with the others), and rebuild the shared object library
-- Not every SDK API is covered in the STDevice class, but the base ones are there.  If you need others, you can extend the class fairly easily; please consider contributing your enhancements back to this repository
+- Not every SDK API is covered in the STDevice class at present, but the base ones are there.  If you need others, you can extend the class fairly easily; please consider contributing your enhancements back to this repository
