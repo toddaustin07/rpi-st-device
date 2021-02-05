@@ -26,7 +26,7 @@ python main.py
 
 # Writing SmartThings device apps in Python
 - You can use main.py as a template.  
-- Be sure that the shared object file you built STDK_API.cpython-37m-arm-linux-gnueabihf.so), as well as libiotcore.a, is in your lib path for python to find.
+- Be sure that the shared object file you built (STDK_API.cpython-37m-arm-linux-gnueabihf.so), as well as libiotcore.a, is in your lib path for python to find.
 - Add 'from STDevice import \*' to your python script (note that if you are using an IDE, it will complain about the libraries not being found; ignore).
 - Use the STDevice class to invoke the SmartThings API.
 - If you need to define additional callbacks, you *must* also declare them in iotcorebuild.py (around line 205 with the others), and rebuild the shared object library under your virtual environment:
