@@ -7,8 +7,8 @@ Before you proceed with Python setup, be sure to exit the C example device app (
 
 ## Step 1: Create a python project directory and virtual environment (recommended, but not mandatory) and activate it
 ```
-  mkdir /home/pi/myproj
-  cd /home/pi/myproj
+  mkdir /home/pi/<myproj>
+  cd /home/pi/<myproj>
   python3 -m venv venv
   source venv/bin/activate  (type 'deactivate' at command prompt to return to non-virtual environment)
 ```
