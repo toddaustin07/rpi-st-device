@@ -1,0 +1,25 @@
+echo -e "\n\033[97mGetting Python API wrapper files\033[0m"
+
+if [ -f "~/st-device-sdk-c/output/libiotcore.a" ]; then
+	cp ~/st-device-sdk-c/output/libiotcore.a libiotcore.a
+	echo -e "\tUsing libiotcore.a you built in ~/st-device-sdk-c/output"
+else
+	cp ~/rpi-st-device/python/libiotcore.a libiotcore.a
+	echo -e "\tUsing libiotcore.a from ~/rpi-st-device/python"
+fi
+
+cp ~/rpi-st-device/python/requirements.txt requirements.txt
+cp ~/rpi-st-device/python/STDevice.py STDevice.py
+cp ~/rpi-st-device/python/st_dev.h st_dev.h
+cp ~/rpi-st-device/python/iotcorebuild.py iotcorebuild.py
+cp ~/rpi-st-device/python/main.py main.py
+cp ~/rpi-st-device/python/getprovfiles getprovfiles
+cp ~/rpi-st-device/softapstart softapstart
+cp ~/rpi-st-device/softapstop softapstop
+echo -e "\n\033[97mCopying C example device app provisioning files from ~/st-device-sdk-c/example\033[0m"
+./getprovfiles
+echo -e "\n\033[97mInstalling required Python modules\033[0m"
+python -m pip install -r requirements.txt
+echo -e "\n\033[97mBuilding python library for core SDK\033[0m"
+python iotcorebuild.py
+echo -e "\nDONE\n"

@@ -1,0 +1,12 @@
+cp ~/st-device-sdk-c/example/device_info.json device_info.json
+cp ~/st-device-sdk-c/example/onboarding_config.json onboarding_config.json
+cp ~/st-device-sdk-c/example/DeviceID DeviceID
+cp ~/st-device-sdk-c/example/WifiProvStatus WifiProvStatus
+cp ~/st-device-sdk-c/example/ServerURL ServerURL
+cp ~/st-device-sdk-c/example/ServerPort ServerPort
+cp ~/st-device-sdk-c/example/Label Label
+cp ~/st-device-sdk-c/example/IotAPSSID IotAPSSID
+cp ~/st-device-sdk-c/example/IotAPBSSID IotAPBSSID
+cp ~/st-device-sdk-c/example/IotAPAuthType IotAPAuthType
+cp ~/st-device-sdk-c/example/CloudProvStatus CloudProvStatus
+cp ~/st-device-sdk-c/example/MiscInfo MiscInfo
