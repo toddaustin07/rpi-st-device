@@ -2,16 +2,16 @@
 
 By default, the core SDK supports C language device apps only.  However, I've created an API wrapper so you can also write device apps in Python.
 
-First, proceed with the complete setup for this RPI setup package and make sure you have the C-language example app working (fully onboarded and running).
+First, proceed with the complete setup for this RPI setup package (mastersetup) and make sure you have the C-language example device app working (fully onboarded and running).
 Before you proceed with Python setup, be sure to exit the C example device app (but don't delete the device from SmartThings mobile app).
 
-## Step 1: Create python project directory and virtual environment (recommended, but not mandatory) and activate it
+## Step 1: Create a python project directory and virtual environment (recommended, but not mandatory) and activate it
 Within your python project directory:
 ```
   mkdir /home/pi/myproj
   cd /home/pi/myproj
   python3 -m venv venv
-  source venv/bin/activate  ('deactivate' when done)
+  source venv/bin/activate  (type 'deactivate' at command prompt to return to non-virtual environment)
 ```
 ## Step 2: Install required Python modules
 ```
