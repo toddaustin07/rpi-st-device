@@ -12,26 +12,13 @@ Before you proceed with Python setup, be sure to exit the C example device app (
   python3 -m venv venv
   source venv/bin/activate  (type 'deactivate' at command prompt to return to non-virtual environment)
 ```
-## Step 2: Install required Python modules
+## Step 2: Run the setup script from your project directory
+This will get all needed files, including installing python modules into your virtual environment, and create a new python shared library: STDK_API.cpython-37m-arm-linux-gnueabihf.so
 ```
-python -m pip3 install -r requirements.txt
-```
-## Step 3: Get core SDK library file: libiotcore.a
-Either use the pre-built one supplied in this package python directory, or one you've built yourself from ~/st-device-sdk-c/output
-
-## Step 4: Create Python library for core SDK
-```
-python iotcorebuild.py
-```
-This will create a new python shared library: STDK_API.cpython-37m-arm-linux-gnueabihf.so
-
-## Step 5: Copy files from C example directory into your python project directory
-Note: To avoid re-onboarding the test device, we'll assume you have gotten the C-language example app working and we'll steal the device provisioning files from that (~/st-device-sdk-c/example) by running a bash script to copy the needed files:
-```
-getprovfiles
+home/pi/rpi-st-device/python/setup
 ```
 
-## Step 6: Run the example python app
+## Step 3: Run the example python app
 ```
 python main.py
 ```
@@ -42,5 +29,8 @@ python main.py
 - Be sure that the shared object file you built STDK_API.cpython-37m-arm-linux-gnueabihf.so), as well as libiotcore.a, is in your lib path for python to find.
 - Add 'from STDevice import \*' to your python script (note that if you are using an IDE, it will complain about the libraries not being found; ignore).
 - Use the STDevice class to invoke the SmartThings API.
-- If you need to define additional callbacks, you *must* also declare them in iotcorebuild.py (around line 205 with the others), and rebuild the shared object library
+- If you need to define additional callbacks, you *must* also declare them in iotcorebuild.py (around line 205 with the others), and rebuild the shared object library under your virtual environment:
+```
+    python iotcorebuild.py
+```
 - Not every SDK API is covered in the STDevice class at present, but the base ones are there.  If you need others, you can extend the class fairly easily; please consider contributing your enhancements back to this repository
