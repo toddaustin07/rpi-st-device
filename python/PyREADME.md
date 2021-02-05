@@ -27,7 +27,7 @@ python iotcorebuild.py
 This will create a new python shared library: STDK_API.cpython-37m-arm-linux-gnueabihf.so
 
 ## Step 5: Copy files from C example directory into your python project directory
-Note: To avoid re-onboarding the test device, we'll assume you have gotten the C-language example app working and we'll steal the files from that (~/st-device-sdk-c/example) by running a bash script to copy the needed files:
+Note: To avoid re-onboarding the test device, we'll assume you have gotten the C-language example app working and we'll steal the device provisioning files from that (~/st-device-sdk-c/example) by running a bash script to copy the needed files:
 ```
 getprovfiles
 ```
