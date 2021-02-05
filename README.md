@@ -14,8 +14,8 @@ SmartThings's concept for "direct-connected" devices are wifi-enabled microcontr
 Pre-requisites
 --------------
 ## Hardware
-- Raspberry Pi 3 or later running Raspberry Pi O/S 
-	- assumed to include the standard capabilities including working wireless device with AP capability
+- Raspberry Pi 3 or later running Raspberry Pi O/S (Buster preferred, but as far back as Jessie can also work)
+	- assumed to include the standard capabilities including integrated wireless with AP capability (see below)
 	
 
 ## Accounts
@@ -31,7 +31,7 @@ Pre-requisites
   
 - RPI SmartThings device enabling package (this repository)
 
-- SmartThings core SDK
+- SmartThings core SDK (will be installed by this setup)
 	
   
 Useful reading
@@ -46,14 +46,12 @@ Useful reading
 
 Two Ways to Proceed
 -------------------
-1) Use a fully-automated bash script to quickly get up and running
+1) Use a fully-automated bash script to quickly get up and running ('mastersetup')
 2) Follow step-by-step MANUAL configuration guide
 
 For either option, start here ==> http://toddaustin07.github.io
 
 Work in progress
 ----------------
-- Beta test volunteers
-- GUI-based device application examples
-- SmartThings API wrapper for devices written in Python (currently only C language is supported)
+- Beta testing
   
