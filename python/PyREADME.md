@@ -28,7 +28,7 @@ python pyexample.py
 - You can use pyexample.py as a template.  
 - Be sure that the shared object file you built (STDK_API.cpython-37m-arm-linux-gnueabihf.so), as well as libiotcore.a, is in your lib path for python to find.
 - Add 'from STDevice import \*' to your python script (note that if you are using an IDE, it will complain about the libraries not being found; ignore that).
-- Use the STDevice class to invoke the SmartThings API within your device app (you can have only one instance of a STDevice object with the current code).
+- Use the STDevice class methods to invoke the SmartThings API within your device app (you can have only one instance of a STDevice object with the current code).
 - If you need to define additional callbacks for your device app, you *must* also declare them in iotcorebuild.py (insert after line 14), and rebuild the shared object library under your virtual environment:
 ```
     python iotcorebuild.py
