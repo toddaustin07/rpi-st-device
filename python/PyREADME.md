@@ -3,9 +3,9 @@
 By default, the core SDK supports C language device apps only.  However, I've created an API wrapper so you can also write device apps in Python.
 
 First, proceed with the complete setup for this RPI setup package (mastersetup) and make sure you have the C-language example device app working (fully onboarded and running).
-Before you proceed with Python setup, be sure to exit the C example device app (but don't delete the device from SmartThings mobile app).
+Before you proceed with Python setup, you can exit the C example device app if it is running, but don't delete the test device from SmartThings mobile app.
 
-## Step 1: Create a python project directory and virtual environment (recommended, but not mandatory) and activate it
+## Step 1: Create a python project directory and virtual environment (VE is recommended, but not mandatory) and activate VE
 ```
   mkdir /home/pi/<myproj>
   cd /home/pi/<myproj>
@@ -20,16 +20,16 @@ home/pi/rpi-st-device/python/setup
 
 ## Step 3: Run the example python app
 ```
-python main.py
+python pyexample.py
 ```
 
 
 # Writing SmartThings device apps in Python
-- You can use main.py as a template.  
+- You can use pyexample.py as a template.  
 - Be sure that the shared object file you built (STDK_API.cpython-37m-arm-linux-gnueabihf.so), as well as libiotcore.a, is in your lib path for python to find.
-- Add 'from STDevice import \*' to your python script (note that if you are using an IDE, it will complain about the libraries not being found; ignore).
-- Use the STDevice class to invoke the SmartThings API.
-- If you need to define additional callbacks, you *must* also declare them in iotcorebuild.py (around line 205 with the others), and rebuild the shared object library under your virtual environment:
+- Add 'from STDevice import \*' to your python script (note that if you are using an IDE, it will complain about the libraries not being found; ignore that).
+- Use the STDevice class to invoke the SmartThings API within your device app (you can have only one instance of a STDevice object with the current code).
+- If you need to define additional callbacks for your device app, you *must* also declare them in iotcorebuild.py (insert after line 14), and rebuild the shared object library under your virtual environment:
 ```
     python iotcorebuild.py
 ```
