@@ -1,6 +1,6 @@
 # How to call the SmartThings core SDK from Python
 
-By default, the core SDK supports C language device apps only.  However, I've created an API wrapper so you can also write device apps in Python.
+By default, the core SDK supports C language device apps only.  However, you can create an API wrapper so you can write device apps in Python.
 
 First, proceed with the complete setup for this RPI setup package (mastersetup) and make sure you have the C-language example device app working (fully onboarded and running).
 Before you proceed with Python setup, you can exit the C example device app if it is running, but don't delete the test device from SmartThings mobile app.
