@@ -10,9 +10,9 @@ fi
 
 cp ~/rpi-st-device/python/requirements.txt requirements.txt
 cp ~/rpi-st-device/python/STDevice.py STDevice.py
-cp ~/rpi-st-device/python/st_dev.h st_dev.h
+cp ~/rpi-st-device/python/py_st_dev.h py_st_dev.h
 cp ~/rpi-st-device/python/iotcorebuild.py iotcorebuild.py
-cp ~/rpi-st-device/python/main.py main.py
+cp ~/rpi-st-device/python/pyexample.py pyexample.py
 cp ~/rpi-st-device/python/getprovfiles getprovfiles
 cp ~/rpi-st-device/softapstart softapstart
 cp ~/rpi-st-device/softapstop softapstop
