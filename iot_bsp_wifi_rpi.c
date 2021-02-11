@@ -1,9 +1,9 @@
 /*******************************************************************************************************************************************
 Enabling Raspberry Pi to run SmartThings direct-connected device applications
     This file replaces iot_bsp_wifi_posix.c in the SmartThings Core SDK
-                           Version 0.20201217
+                           Version 0.20210210
 
- Copyright 2020 Todd A. Austin
+ Copyright 2021 Todd A. Austin
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -42,6 +42,11 @@ With thanks to Kwang-Hui of Samsung who patiently answered my many questions dur
 #include "/home/pi/st-device-sdk-c/src/include/os/iot_os_util.h"
 #include "/home/pi/st-device-sdk-c/src/include/iot_util.h"
 
+/*****************************
+          UPDATE!!!!
+*****************************/
+#define MODVERSION "20210210"
+
 #define RPICONFFILE "RPISetup.conf"
 #define DEFAULTDIR "./"
 #define SOFTAPCONFFILE "/etc/hostapd/hostapd.conf"
@@ -66,6 +71,7 @@ With thanks to Kwang-Hui of Samsung who patiently answered my many questions dur
 #define SCANMODEWAITTIME 800000
 #define SOFTAPWAITTIME 999999
 #define SEQSYSCMDWAIT 500000
+#define SCANRETRIES 4
 
 extern int errno;
 
@@ -140,6 +146,7 @@ iot_error_t iot_bsp_wifi_init()
     int errnum;
 
     IOT_INFO("[rpi] iot_bsp_wifi_init");
+    IOT_INFO("[rpi] wifi module version %s",MODVERSION);
 
     if (!WIFI_INITIALIZED)  {
 
@@ -413,6 +420,7 @@ int _initDevNames() {
     char command[40];
     uint8_t tmpmac[IOT_WIFI_MAX_BSSID_LEN];
     bool found = false;
+    bool done = false;
     int i;
     char *textptr;
 
@@ -427,87 +435,84 @@ int _initDevNames() {
     pf = popen("ls /sys/class/net","r");
 
     if (pf)  {
+        while (! done) {
+            if(fgets(data,maxdatasize,pf)) {
 
-         if(fgets(data,maxdatasize,pf)) {
+                i = 0;
+                while ((*(data+i) != ' ') && (*(data+i) != '\n'))  {        // Ethernet device will be first text in ls command output
+                    devname[i] = *(data+i);
+                    ++i;
+                }
 
-            pclose(pf);
+                devname[i] = '\0';
+                if (strcmp(devname,"eth0") == 0) {
+                    done = true;
+                    found = true;
+                }
+            } else
+                done = true;
+        } // end while loop
 
-            i = 0;
+        pclose(pf);
 
-            while ((*(data+i) != ' ') && (*(data+i) != '\n'))  {        // Ethernet device will be first text in ls command output
-                devname[i] = *(data+i);
-                ++i;
+        if (! found) {
+            IOT_WARN("[rpi] eth0 not found",devname);
+            Ethernet = false;
+        } else {
+
+            strcpy(eth_dev,devname);            // Found device name; save it in global static variable
+
+            sprintf(command,"cat /sys/class/net/%s/carrier",devname);
+            pf = popen(command,"r");
+            if (pf)  {
+
+                if(fgets(data,maxdatasize,pf)) {
+
+                    pclose(pf);
+                    if (*data == '1') {
+
+                        Ethernet = true;
+
+                    } else {
+
+                        IOT_INFO("Ethernet device %s not connected",devname);
+                        Ethernet = false;
+
+                    }
+                } else {
+                    IOT_ERROR("[rpi] Could not read Ethernet status %s",devname);
+                    pclose(pf);
+                    Ethernet = false;
+                }
+            } else {
+                IOT_ERROR("[rpi] Carrier file not found for %s",devname);
+                Ethernet = false;
             }
 
-            devname[i] = '\0';
+            // Now get the Ethernet mac address
 
-            if (strcmp(devname,"eth0") != 0) {
-                IOT_ERROR("[rpi] Unexpected Ethernet device name",devname);
-                Ethernet = false;
-            } else {
-
-                strcpy(eth_dev,devname);            // Found device name; save it in global static variable
-
-                sprintf(command,"cat /sys/class/net/%s/carrier",devname);
+            if (Ethernet) {
+                sprintf(command,"cat /sys/class/net/%s/address",devname);
                 pf = popen(command,"r");
                 if (pf)  {
 
                     if(fgets(data,maxdatasize,pf)) {
-
                         pclose(pf);
-                        if (*data == '1') {
+                        _parsemac(data,ethmacaddr);
 
-                            Ethernet = true;
-
-                        } else {
-
-                            IOT_INFO("Ethernet device %s not connected",devname);
-                            Ethernet = false;
-
-                        }
                     } else {
-                        IOT_ERROR("[rpi] Could not read Ethernet status %s",devname);
+                        IOT_ERROR("[rpi] Could not read Ethernet mac address %s",devname);
                         pclose(pf);
-                        Ethernet = false;
                     }
                 } else {
-                    IOT_ERROR("[rpi] Could not check Ethernet status %s",devname);
-                    Ethernet = false;
-                }
-
-                // Now get the Ethernet mac address
-
-                if (Ethernet) {
-                    sprintf(command,"cat /sys/class/net/%s/address",devname);
-                    pf = popen(command,"r");
-                    if (pf)  {
-
-                        if(fgets(data,maxdatasize,pf)) {
-                            pclose(pf);
-                            _parsemac(data,ethmacaddr);
-
-                        } else {
-                            IOT_ERROR("[rpi] Could not read Ethernet mac address %s",devname);
-                            pclose(pf);
-                        }
-                    } else {
-                        IOT_ERROR("[rpi] Could not check Ethernet mac address %s",devname);
-                    }
+                    IOT_ERROR("[rpi] Could not check Ethernet mac address %s",devname);
                 }
             }
-
-        } else {
-
-            IOT_ERROR("[rpi] Could not check Ethernet status %s",devname);
-            pclose(pf);
-            Ethernet = false;
         }
-
-
 
     } else {
 
-        IOT_ERROR("[rpi] Could not read device directory");
+        IOT_ERROR("[rpi] Could not read network device directory");
         Ethernet = false;
 
     }
@@ -824,6 +829,7 @@ iot_error_t iot_bsp_wifi_set_mode(iot_wifi_conf *conf)
 
 	char connected_ssid[IOT_WIFI_MAX_SSID_LEN+1];
 	int scancount;
+	int sretry;
 	char SoftAPdev[16];
 
 
@@ -857,15 +863,25 @@ iot_error_t iot_bsp_wifi_set_mode(iot_wifi_conf *conf)
 
         if (!AP_ON || DualWifidev || APWifionly) {
 
-            scancount = _perform_scan();                        // do scan and check resulting AP count
+            scancount = 0;
+            sretry = SCANRETRIES;
 
-            if (scancount == 0) {                               // if no results...
+            while ((scancount == 0) && (sretry > 0)) {
+                scancount = _perform_scan();                        // do scan and check resulting AP count
 
-                usleep(SCANMODEWAITTIME);                       //     pause and
-                scancount = _perform_scan();                    //     try one more time
+                if (scancount == 0) {                               // if no results...
+                    usleep(SCANMODEWAITTIME);
+                    usleep(SCANMODEWAITTIME);                       //     pause and try again
+                    --sretry;
+                }
             }
 
-            IOT_INFO("[rpi] WiFi scan completed. %d APs found",scancount);
+            if (scancount > 0)
+                IOT_INFO("[rpi] WiFi scan completed. %d APs found",scancount);
+            else {
+                IOT_ERROR("[rpi] WiFi scan unable to find available APs");
+                return IOT_ERROR_CONN_OPERATE_FAIL;
+            }
         } else
             IOT_INFO("[rpi] Scan not performed while in AP mode");
 
@@ -996,7 +1012,7 @@ iot_error_t iot_bsp_wifi_set_mode(iot_wifi_conf *conf)
             APWifionlyRestore=true;
 
 		IOT_DEBUG("wifi_init_softap finished.SSID:%s password:%s",
-				wifi_config.ap.ssid, wifi_config.ap.password);
+				conf->ssid, conf->pass);
 
 
         IOT_INFO("[rpi] AP Mode Started on device %s",SoftAPdev);
@@ -1274,7 +1290,7 @@ int _setupHostapd(char*ssid, char *password, char *iface) {
     unsigned int len = sizeof(readline);
     char *textptr;
     char readSSID[IOT_WIFI_MAX_SSID_LEN+1];
-    char readPW[35];
+    char readPW[IOT_WIFI_MAX_PASS_LEN+1];
     char readInterface[MAXDEVNAMESIZE+1];
 
     int rc;
