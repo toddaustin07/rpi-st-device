@@ -16,7 +16,7 @@ SmartThings's concept for "direct-connected" devices are wifi-enabled microcontr
 Pre-requisites
 --------------
 ## Hardware
-- Raspberry Pi Model 3 or 4 running 
+- Raspberry Pi Model 3 or 4 
 	- must include the standard capabilities including integrated wireless with AP (Access Point) capability
 	
 
