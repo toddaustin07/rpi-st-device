@@ -4,20 +4,20 @@ This repository holds everything needed to set up a Raspberry Pi to act as a Sma
 
 What is a direct connected device?
 ----------------------------------
-The SmartThings platform is evolving. In the not-too-distant future there will be three methods for IOT devices to integrate with SmartThings: 1) zwave and zigbee devices that connect directly to the SmartThings hub, 2) cloud-connected devices, and 3) direct-connected devices.  Former devices that were developed in the SmartThings IDE using device handlers with Groovy code will need to be migrated to one of the those three options.
+The SmartThings platform is evolving. In the not-too-distant future there will be three methods for IOT devices to integrate with SmartThings: 1) zwave and zigbee devices that talk directly to the SmartThings hub, 2) cloud-connected devices, and 3) direct-connected devices.  Former devices that were developed in the SmartThings IDE using device type handlers with Groovy code will need to be migrated to one of the those three new options.
 
 * Hub-connected: an option realistically only available to manufacturers of zigbee and zwave devices; not likely an option for the home-automation do-it-yourselfer
 * Cloud-connected: requires you to run your code on a cloud server - either your own, self-managed server or on AWS.  Most hobbiests will not want to open their home LAN to the internet, which would be required to host your own cloud server, due to complexity and security risks.  The AWS alternative may be more practical, but having your devices running from cloud to cloud may not give the best performance.  
-* Direct-connected: this alternative allows you to connect directly to SmartThing's cloud, without an intermediate cloud server as in above.  In this alternative, your device apps are running on your own computer (i.e. Raspberry Pi), keeping things running local, free, and under your control.
+* Direct-connected: this alternative allows you to connect directly to SmartThing's cloud, without an intermediate cloud server as in above.  In this approach, your device apps are running on your own computer (i.e. Raspberry Pi), on a local LAN with internet access, using an SDK API to talk to the SmartThings platform.
 
-SmartThings's concept for "direct-connected" devices are wifi-enabled microcontroller-based IOT devices.  In fact the SDK that was developed in support of this very much revolves around MCUs like the popular ESP32 system-on-a-chip microcontroller with integrated wifi.  However with modifications, this can be implemented on a Raspberry Pi as well.  The only downside to this approach is the way devices must be individually provisioned.  However, what direct connected devices enables is an ideal configuration where the sky is the limit as far as application code that you can write and run and have fully integrated with SmartThings.  No cloud server to manage, no IDE, no Groovy code - just a simple API to send and receive commands and attributes for whatever kind of IOT device application you can dream up and implement on a Raspberry Pi.  
+SmartThings's concept for "direct-connected" devices are wifi-enabled microcontroller-based IOT devices.  In fact the SDK that was developed in support of this very much revolves around MCUs like the popular ESP32 system-on-a-chip microcontroller with integrated wifi.  However with modifications, the SDK can be implemented on a Raspberry Pi as well.  The only downside to this approach is the way devices must be individually provisioned.  However, what direct connected devices enables is an environment where you can write and run applications totally under your control, with full integration with SmartThings.  No cloud server to manage, no IDE, no Groovy code - just a simple API to send and receive commands and attributes for whatever kind of IOT device application you can dream up and implement on a Raspberry Pi using either C or Python.
 
 
 Pre-requisites
 --------------
 ## Hardware
-- Raspberry Pi 3 or later running Raspberry Pi O/S (Buster preferred, but as far back as Jessie can also work)
-	- assumed to include the standard capabilities including integrated wireless with AP (Access Point) capability
+- Raspberry Pi Model 3 or 4 running Raspberry Pi O/S (Version 10 Buster preferred, but as far back as Jessie can also work)
+	- must include the standard capabilities including integrated wireless with AP (Access Point) capability
 	
 
 ## Accounts
@@ -28,12 +28,12 @@ Pre-requisites
   
 ## Software
     
-- Rasbian O/S with Python 3.5 or later (required for SDK tools: keygen and qrgen)
+- Raspberry Pi O/S with Python 3.5 or later (required for SDK tools: keygen and qrgen)
 	- additional packages:  pynacl, qrcode, pillow (via pip installer)
   
 - RPI SmartThings device enabling package (this repository)
 
-- SmartThings core SDK (will be installed by the setup script)
+- SmartThings core SDK (will be installed by the setup script, including additional dependencies)
 	
   
 Useful reading
@@ -42,7 +42,7 @@ Useful reading
 - SmartThings API Reference: https://github.com/SmartThingsCommunity/st-device-sdk-c/blob/master/doc/APIs.md
 - How to build Direct Connect Devices on ST Community:  https://community.smartthings.com/t/how-to-build-direct-connected-devices/204055
   - Note that the above community post is not for Raspberry Pi, so any reference to toolchains and MCU boards can be ignored
-  - Also, these instructions should only be followed as outlined in the Configuration Guide in this repository
+  - Also, those instructions should only be referenced as specified in the Configuration Guide in this repository
 - Quickstart Guide for Raspberry Pi:  https://github.com/toddaustin07/rpi-st-device/blob/main/QuickstartGuide.pdf
 - Configuration Guide for Raspberry Pi:  https://github.com/toddaustin07/rpi-st-device/blob/main/ConfigGuide.pdf
 
@@ -55,5 +55,5 @@ For either option, start here ==> http://toddaustin07.github.io
 
 Work in progress
 ----------------
-- Beta testing
+- Beta testing - volunteers wanted!
   
