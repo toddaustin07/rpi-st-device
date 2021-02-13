@@ -1,7 +1,7 @@
 /*******************************************************************************************************************************************
 Enabling Raspberry Pi to run SmartThings direct-connected device applications
     This file replaces iot_bsp_wifi_posix.c in the SmartThings Core SDK
-                           Version 0.20210210
+                           Version 0.20210213
 
  Copyright 2021 Todd A. Austin
 
@@ -23,8 +23,9 @@ Description:
     This file must be compiled as part of the SmartThings SDK for Direct Connect Devices.
     This module replaces the posix wifi module in the BSP porting directory of the SDK:
             ~/st-device-sdk/src/port/bsp/posic/iot_bsp_wifi_posix.c
-    All remaining posix modules in the SDK BSP port files are used for Raspberry Pi builds, namely:
-        iot_os_util_posix.c, iot_bsp_debug_posix.c, iot_bsp_nv_data_posix.c, iot_bsp_random_posix.c, iot_bsp_system_posix.c
+    Most remaining posix modules in the SDK BSP port files are used for Raspberry Pi builds, namely:
+        iot_os_util_posix.c, iot_bsp_debug_posix.c, iot_bsp_nv_data_posix.c, iot_bsp_random_posix.c
+        iot_bsp_system_posix.c should be modifed to ignore the clock set function since permissions may not allow it on a Pi.
 
 With thanks to Kwang-Hui of Samsung who patiently answered my many questions during development.
 
@@ -36,16 +37,16 @@ With thanks to Kwang-Hui of Samsung who patiently answered my many questions dur
 #include <unistd.h>
 #include <errno.h>
 
-#include </home/pi/st-device-sdk-c/src/include/bsp/iot_bsp_wifi.h>
-#include </home/pi/st-device-sdk-c/src/include/iot_error.h>
-#include </home/pi/st-device-sdk-c/src/include/iot_debug.h>
-#include "/home/pi/st-device-sdk-c/src/include/os/iot_os_util.h"
-#include "/home/pi/st-device-sdk-c/src/include/iot_util.h"
+#include "iot_bsp_wifi.h"
+#include "iot_error.h"
+#include "iot_debug.h"
+#include "iot_os_util.h"
+#include "iot_util.h"
 
 /*****************************
           UPDATE!!!!
 *****************************/
-#define MODVERSION "20210210"
+#define MODVERSION "20210212"
 
 #define RPICONFFILE "RPISetup.conf"
 #define DEFAULTDIR "./"
@@ -273,7 +274,7 @@ bool _getrpiconf(char *currdir) {
                         else if ((parmstr[0] == 'N') || (parmstr[0] == 'n'))
                             Ethernet = false;
 
-                    }
+                   }
                 } else {
                     if ((textptr = strstr(readline,configtag_AP))) {
 
@@ -319,10 +320,9 @@ bool _getrpiconf(char *currdir) {
                 }
             }
         }
-        fclose(pf);
 
-        if (readline)
-            free(readline);
+        free(readline);
+        fclose(pf);
 
     }  else {
         errnum=errno;
@@ -343,9 +343,9 @@ bool _checkfortestdevfile() {
     FILE *pf;
     char pathname[100];
     char *readline = NULL;
+    size_t len = 0;
     char *textptr;
     char parmstr[50];
-    size_t len;
     int errnum;
 
     // Initialize global static defaults
@@ -388,8 +388,9 @@ bool _checkfortestdevfile() {
             } //end if blank line
         }
 
-
+        free(readline);
         fclose(pf);
+
         if (strcmp(eth_dev, "") == 0)
             Ethernet = false;
         else
@@ -684,7 +685,10 @@ int _parseconfparm(char *parmstr, char *text) {
             return(1);
         else
             return(0);
-    }
+
+    } else
+        IOT_ERROR("[rpi] Config file format error");
+
     return(0);
 
 }
@@ -1286,8 +1290,8 @@ int _SoftAPControl(char *cmd) {
 int _setupHostapd(char*ssid, char *password, char *iface) {
 
     FILE *pf;
-    char *readline;
-    unsigned int len = sizeof(readline);
+    char *readline = NULL;
+    size_t len = 0;
     char *textptr;
     char readSSID[IOT_WIFI_MAX_SSID_LEN+1];
     char readPW[IOT_WIFI_MAX_PASS_LEN+1];
@@ -1335,9 +1339,8 @@ int _setupHostapd(char*ssid, char *password, char *iface) {
             }
         }
 
+        free(readline);
         fclose(pf);
-        if (readline)
-            free(readline);
 
         if ((progcount == 3) && (updateflag > 0)) {         // if found ssid, password, and interface ok, AND any needs updating
 
@@ -1378,11 +1381,10 @@ int _updateHfile(char *fname, char *ssid,char *password, char *iface) {
 
     FILE *fp1, *fp2, *fp3;
 
-    #define MAX 100
-    char *readline;
+    char *readline = NULL;
+    size_t len = 0;
     char *textptr;
-    char command[300];
-    unsigned int len = 0;
+    char command[400];
 
     fp1 = fopen(fname,"r");
     if (!fp1) {
@@ -1426,8 +1428,8 @@ int _updateHfile(char *fname, char *ssid,char *password, char *iface) {
 
     }
 
-    if (readline)
-        free(readline);
+
+    free(readline);
     fclose(fp1);
     fclose(fp2);
 
