@@ -5,6 +5,8 @@ By default, the core SDK supports C language device apps only.  However, you can
 First, proceed with the complete setup for this RPI setup package (mastersetup) and make sure you have the C-language example device app working (fully onboarded and running).
 Before you proceed with Python setup, you can exit the C example device app if it is running, but don't delete the test device from SmartThings mobile app.
 
+Note:  This currently works only on 32-bit Raspberry Pi OS.  
+
 ## Step 1: Create a python project directory and virtual environment (VE is recommended, but not mandatory), and activate the VE
 ```
   mkdir /home/pi/<myproj>
