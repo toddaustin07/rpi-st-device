@@ -1,3 +1,6 @@
 .stepstat
 ORIG_dhcpcd
 SAVED_dhcpcd
+python/STDK_API.c
+python/STDK_API.o
+python/STDK_API.cpython-37m-arm-linux-gnueabihf.so
