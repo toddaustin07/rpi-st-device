@@ -35,6 +35,7 @@ python pyexample.py
 ```
     cd ~/<myproj>
     source venv/bin/activate
+    nano iotcorebuild.py      <--- add your callback declarations
     python iotcorebuild.py
 ```
 - Not every SDK API is covered in the STDevice class at present, but the base ones are there.  If you need others, you can extend the class fairly easily; please consider contributing your enhancements back to this repository
