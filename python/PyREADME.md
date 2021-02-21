@@ -33,6 +33,8 @@ python pyexample.py
 - Use the STDevice class methods to invoke the SmartThings API within your device app (you can have only one instance of a STDevice object with the current code).
 - If you need to define additional callbacks for your device app, you *must* also declare them in iotcorebuild.py (insert after line 14), and rebuild the shared object library under your virtual environment:
 ```
+    cd ~/<myproj>
+    source venv/bin/activate
     python iotcorebuild.py
 ```
 - Not every SDK API is covered in the STDevice class at present, but the base ones are there.  If you need others, you can extend the class fairly easily; please consider contributing your enhancements back to this repository
