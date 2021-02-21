@@ -9,15 +9,15 @@ Note:  This currently works only on 32-bit Raspberry Pi OS.
 
 ## Step 1: Create a python project directory and virtual environment (VE is recommended, but not mandatory), and activate the VE
 ```
-  mkdir /home/pi/<myproj>
-  cd /home/pi/<myproj>
+  mkdir ~/<myproj>
+  cd ~/<myproj>
   python3 -m venv venv
   source venv/bin/activate  (type 'deactivate' at command prompt to return to non-virtual environment)
 ```
 ## Step 2: Run the setup script from your project directory
 This will get all needed files, including installing python modules into your virtual environment, and create a new python shared library: STDK_API.cpython-37m-arm-linux-gnueabihf.so
 ```
-home/pi/rpi-st-device/python/setup
+~/rpi-st-device/python/setup
 ```
 
 ## Step 3: Run the example python app
