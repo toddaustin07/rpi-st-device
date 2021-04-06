@@ -352,8 +352,8 @@ step1() {
   clonepkg 0 "https://github.com/toddaustin07/rpi-st-device.git"
 
   if [[ "${stepst[0]}" == "$done" && "$startdir" != "$rpipkgdir" ]]; then
-      echo -e "\t\e[93m>> From now on, you should run this setup script from the"
-      echo -e "\t   \e[1m$rpipkgdir\e[22m directory\e[0m"
+      echo -e "\t\e[93m>> From now on, run this setup script from the"
+      echo -e "\t   \e[97m$rpipkgdir\e[93m directory\e[0m"
       echo -e "\t\e[0m>> You can continue for now"
       if [ -f "$HOME/mastersetup" ]; then rm "$HOME/mastersetup"; fi
       cd $rpipkgdir
@@ -369,7 +369,7 @@ step2() {
 
   bash $rpipkgdir/installSDKdeps
 
-  echo -ne "\n\n\t\e[95mDid you encounter any errors or additional dependencies? (\e[1my/n\e[0m) "
+  echo -ne "\n\n\t\e[95mDid you encounter any errors or additional dependencies? (y/n): "
   getyesno
 
   if [ $keyresp == "y" ]
@@ -452,8 +452,8 @@ step5() {
   read -rsn1 keyin
   echo
   
-  echo -e "\n\t\e[97mWe will now create a new device serial number and key for your test device\e[22m"
-  echo -en "\t\e[95mPress '\e[1mc\e[22m' to continue or '\e[1ms\e[22m' to skip\e[0m"
+  echo -e "\n\t\e[97mWe will now create a new device serial number and key for your test device"
+  echo -en "\t\e[95mPress '\e[97mc\e[95m' to continue or '\e[97ms\e[95m' to skip\e[0m"
   
   keyin=""
   while [[ "$keyin" != "c" && "$keyin" != "s" ]]; do
@@ -464,7 +464,7 @@ step5() {
   if [ "$keyin" == "c" ]; then
   
     echo -e "\n\t\e[0mUse the serial number and public key generated below to complete the instructions"
-    echo -e "\tin section \e[1m2.6\e[0m 'Register Test Devices'"
+    echo -e "\tin section \e[97m2.6\e[0m 'Register Test Devices'"
   
     cd "$sdkpkgdir/tools/keygen"
     output=$(python3 stdk-keygen.py --firmware switch_example_001)
@@ -475,7 +475,7 @@ step5() {
     echo -e "-------------------------------------------------------"
   
     if [ $errnum -eq 0 ]; then
-      echo -en "\n\t\e[95mPress any key once you've plugged these into Developer Workspace\e[0m"
+      echo -en "\n\t\e[95mPress any key once you've entered these into Developer Workspace\e[0m "
       read -rsn1 keyin
       echo
     
@@ -496,7 +496,7 @@ step5() {
         errnum=$?
         if [ $errnum -eq 0 ]; then
         
-          echo -e "\n\t\e[92mdevice_info.json copied to \e[1m~/st-device-sdk-c/example\e[22m directory\e[0m"
+          echo -e "\n\t\e[92mdevice_info.json copied to \e[97m~/st-device-sdk-c/example\e[92m directory\e[0m"
 
         else
           echo -e "\n\e[91mError copying device_info.json file to SDK example directory\e[0m"      
@@ -510,9 +510,9 @@ step5() {
   fi
   
   echo -e "\n\t\e[97mNow finish device profile & registration in Samsung SmartThings Developer Workspace"
-  echo -e "\t\e[93m>> Download \e[1monboarding_config.json\e[22m to \e[1m~/st-device-sdk-c/example\e[22m directory<<\e[0m"
+  echo -e "\t\e[93m>> Download \e[97monboarding_config.json\e[93m to \e[97m~/st-device-sdk-c/example\e[93m directory<<\e[0m"
         
-  echo -en "\n\t\e[95mPress any key once you have downloaded \e[1monboarding_config.json\e[22m\e[0m"
+  echo -en "\n\t\e[95mPress any key once you have downloaded \e[97monboarding_config.json"
   read -rsn1 keyin
   echo
         
@@ -547,7 +547,7 @@ step6() {
   
   if [ $errnum == 0 ]; then
   
-    echo -en "\n\t\e[95mDid you have any errors (\e[1my/n\e[22m)? \e[0m"
+    echo -en "\n\t\e[95mDid you have any errors (\e[0my/n\e[95m)? \e[0m"
     getyesno
     
     if [ "$keyresp" == "n" ]; then
@@ -574,7 +574,7 @@ step7() {
   
   echo -e "\n\t\e[97mRaspberry Pi SoftAP Configuration\e[0m"
   
-  echo -e "\n\t\e[0mLaunching configuration script with \e[1mroot\e[0m privileges...\n"
+  echo -e "\n\t\e[0mLaunching configuration script with \e[93mroot\e[0m privileges...\n"
   
   sudo ./SoftAPconfig
   errnum=$?
@@ -598,8 +598,8 @@ step7() {
 step8() {
   
   echo -e "\n\t\e[97mPrepare to onboard your device!\e[0m"
-  echo -e "\n\tOpen the SmartThings mobile app and begin the 'Add Device' process"
-  echo -en "\n\t\e[95mPress any key once you have tapped 'Scan QR code'"
+  echo -e "\n\tOpen the SmartThings mobile app and begin the \e[97mAdd Device\e[0m process"
+  echo -en "\n\t\e[95mPress any key once you have tapped \e[97mScan QR code\e[0m"
   read -rsn1 keyin
   echo 
   
