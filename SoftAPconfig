@@ -273,7 +273,7 @@ echo
 echo -e "\tOriginal files will be saved with 'ORIG' appended to the filename"
 echo -e "\tCurrent files will be saved with 'SAVED' appended to the filename"
 echo
-echo -e "\t\e[95m>> Press \e[1my\e[22m to continue or \e[1mq\e[22m to quit\e[39m"
+echo -e "\t\e[95m>> Press \e[97my\e[95m to continue or \e[97mq\e[95m to quit\e[0m"
 echo -en "\t"
 disp_sep "=" 62
 
@@ -578,7 +578,7 @@ while [ "$getinput" == "y" ]
      then
       if [[ $wlan0chan -ne 0 && $ch -ne $wlan0chan ]]
        then
-        echo -en "\t\e[93m** Warning: channel not same as current wlan0.  Are you sure? (y/n)\e[0m"
+        echo -en "\t\e[93m** Warning: channel not same as current wlan0.  Are you sure? (y/n)\e[0m "
         keyin=""
         while [[ "$keyin" != "y" && "$keyin" != "n" ]]
          do read -rsn1 keyin; done
@@ -624,7 +624,7 @@ while [ "$getinput" == "y" ]
   echo -e "\t     Channel: \e[96m$ch\e[0m"
   echo -e "\t     Country: \e[96m$cc\e[0m"
   echo
-  echo -en "\e[95m  >> Press \e[1my\e[22m to accept & continue, \e[1mn\e[22m to re-enter, or \e[1mq\e[22m to quit\e[0m"
+  echo -en "\e[95m  >> Press \e[97my\e[95m to accept & continue, \e[97mn\e[95m to re-enter, or \e[97mq\e[95m to quit\e[0m "
 
   keyin=""
   while [[ "$keyin" != "y" && "$keyin" != "n"  && "$keyin" != "q" ]]
@@ -664,7 +664,7 @@ if [ "$keyin" == "y" ]
       echo
      else
       echo -e "\n\e[91m   ^^Error encountered (maybe AP type device already exists)\e[0m"
-      echo -en "\n\t\e[95mContinue anyway? (\e[1my/n\e[0m)"
+      echo -en "\n\t\e[95mContinue anyway? (y/n) \e[0m"
       keyin=""
       while [[ "$keyin" != "y" && "$keyin" != "n" ]]
        do read -rsn1 keyin; done
@@ -783,7 +783,7 @@ if [ "$keyin" == "y" ]
 
   # WRAP UP WITH OPTIONAL HOSTAPD TEST
 
-  echo -en "\e[95m>> Would you like to manually start hostapd now for testing? (\e[1my\e[22m/\e[1mn\e[22m)"
+  echo -en "\e[95m>> Would you like to manually start hostapd now for testing? (y/n) "
 
   keyin=""
   while [[ "$keyin" != "y" && "$keyin" != "n" ]]
