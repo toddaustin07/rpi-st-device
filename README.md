@@ -16,7 +16,7 @@ SmartThings's concept for "direct-connected" devices are wifi-enabled microcontr
 Pre-requisites
 --------------
 ## Hardware
-- Raspberry Pi Model 3 or 4 
+- Raspberry Pi Model 3 or 4 or Zero W
 	- must include the standard capabilities including integrated wireless with AP (Access Point) capability
 	
 
@@ -28,7 +28,7 @@ Pre-requisites
   
 ## Software
     
-- Raspberry Pi O/S (Version 10 Buster preferred, but as far back as Jessie can also work)
+- Raspberry Pi O/S (Version 10 Buster preferred, but as far back as Jessie can also work) Full or Lite
         - Python 3.5 or later (required for SDK tools: keygen and qrgen)
 	- additional packages:  pynacl, qrcode, pillow (via pip installer)
 	- limited testing has been done on 64-bit Raspberry Pi OS (which is currently in beta)
@@ -57,5 +57,5 @@ For either option, start here ==> http://toddaustin07.github.io
 
 Work in progress
 ----------------
-- Beta testing - volunteers wanted!
+- Beta closing; Release 1 imminent
   
