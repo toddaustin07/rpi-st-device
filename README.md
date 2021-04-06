@@ -1,4 +1,4 @@
-# Create Raspberry PI-based IOT devices that can directly connect to Samsung SmartThings
+# Create Raspberry PI-based IOT device applications that can directly connect to Samsung SmartThings
 
 This repository holds everything needed to set up a Raspberry Pi to act as a SmartThings direct connected device.
 
