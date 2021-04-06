@@ -1,7 +1,7 @@
 /*******************************************************************************************************************************************
 Enabling Raspberry Pi to run SmartThings direct-connected device applications
     This file replaces iot_bsp_wifi_posix.c in the SmartThings Core SDK
-                           Version 0.20210213
+                           Version 0.20210405
 
  Copyright 2021 Todd A. Austin
 
@@ -46,12 +46,12 @@ With thanks to Kwang-Hui of Samsung who patiently answered my many questions dur
 /*****************************
           UPDATE!!!!
 *****************************/
-#define MODVERSION "20210212"
+#define MODVERSION "20210405"
 
 #define RPICONFFILE "RPISetup.conf"
 #define DEFAULTDIR "./"
 #define SOFTAPCONFFILE "/etc/hostapd/hostapd.conf"
-#define SOFTAPCONTROLDIR "~/rpi-st-device/"
+#define RPIPKGSUBDIR "/rpi-st-device/"
 #define SOFTAPSTARTFILE "softapstart"
 #define SOFTAPSTOPFILE  "softapstop"
 #define PRIORCONF "./__prior_hostapd.conf"
@@ -67,8 +67,8 @@ With thanks to Kwang-Hui of Samsung who patiently answered my many questions dur
 
 #define MAXDEVNAMESIZE 10
 
-#define SSIDWAITRETRIES 7
-#define SSIDWAITTIME 250000
+#define SSIDWAITRETRIES 6
+#define SSIDWAITTIME 999999
 #define SCANMODEWAITTIME 800000
 #define SOFTAPWAITTIME 999999
 #define SEQSYSCMDWAIT 500000
@@ -207,7 +207,8 @@ iot_error_t iot_bsp_wifi_init()
         }
 
         // Make sure SoftAP control scripts are present
-		if (!_checksoftapcontrol(SOFTAPCONTROLDIR)) {
+
+		if (!_checksoftapcontrol("./")) {
 			IOT_ERROR("[rpi] Missing SoftAP control scripts");
 			return IOT_ERROR_CONN_OPERATE_FAIL;
         }
@@ -556,13 +557,13 @@ int _initDevNames() {
 
                         if (strcmp(devtype,"managed") == 0) {
                             strcpy(wifi_sta_dev, devname);
-                            memcpy(wifimacaddr,tmpmac,7);
+                            memcpy(wifimacaddr,tmpmac,IOT_WIFI_MAX_BSSID_LEN);
                         }
                         else {
                             if (strcmp(devtype,"AP") == 0) {
                                 strcpy(wifi_ap_dev,devname);
                                 if (wifimacaddr[0] == 0)
-                                    memcpy(wifimacaddr,tmpmac,7);
+                                    memcpy(wifimacaddr,tmpmac,IOT_WIFI_MAX_BSSID_LEN);
 
                             }
                         }
@@ -595,9 +596,13 @@ int _initDevNames() {
 // Make sure start and stop script files are found
 bool _checksoftapcontrol(char *dir) {
 
-	char filename[60];
+	char filename[70];
+	char filedir[50];
 	int okflag=0;
 	int errnum;
+
+	strcpy(filedir,getenv("HOME"));
+    strcat(filedir,RPIPKGSUBDIR);
 
 	// Check for Start script file in both given dir and current dir
 
@@ -610,7 +615,7 @@ bool _checksoftapcontrol(char *dir) {
         okflag++;
     } else {
 		if (errnum == ENOENT) {
-	 		strcpy(filename,"./");
+	 		strcpy(filename,filedir);
 			strcat(filename,SOFTAPSTARTFILE);
 			errnum = _checkexistfile(filename);
 			if (errnum == 0) {
@@ -638,7 +643,7 @@ bool _checksoftapcontrol(char *dir) {
 	} else {
 
 		if (errnum == ENOENT) {
-			strcpy(filename,"./");
+			strcpy(filename,filedir);
 			strcat(filename,SOFTAPSTOPFILE);
 			errnum = _checkexistfile(filename);
 			if (errnum == 0) {
@@ -1433,35 +1438,35 @@ int _updateHfile(char *fname, char *ssid,char *password, char *iface) {
     fclose(fp1);
     fclose(fp2);
 
-    sprintf(command,"sudo rm %s",PRIORCONF);
+    sprintf(command,"rm -f %s",PRIORCONF);
     fp3 = popen(command,"r");                               // delete prior saved config file (ok if doesn't exist)
     fclose(fp3);
 
-    sprintf(command,"sudo cp %s %s",fname,PRIORCONF);
+    sprintf(command,"cp %s %s",fname,PRIORCONF);
     fp3 = popen(command, "r");                              // save current hostapd.conf to another file
     if (fp3) {
         fclose(fp3);
-        sprintf(command,"sudo rm %s",fname);
-        fp3 = popen(command, "r");                       // delete current hostapd.conf
+        //sprintf(command,"sudo rm %s",fname);
+        //fp3 = popen(command, "r");                       // delete current hostapd.conf
+        //if (fp3) {
+        //  fclose(fp3);
+        sprintf(command,"sudo cp %s %s",TMPFILENAME,fname);
+        fp3 = popen(command, "r");                   // copy new file to hostapd.conf
         if (fp3) {
             fclose(fp3);
-            sprintf(command,"sudo cp %s %s",TMPFILENAME,fname);
-            fp3 = popen(command, "r");                   // copy new file to hostapd.conf
-            if (fp3) {
-                fclose(fp3);
-                sprintf(command,"sudo rm %s",TMPFILENAME);
-                fp3 = popen(command, "r");              // delete temporary file
-                fclose(fp3);
-            }
-            else {
-                IOT_ERROR("[rpi] Cannot copy new %s",fname);
-                return(0);
-            }
+            sprintf(command,"rm %s",TMPFILENAME);
+            fp3 = popen(command, "r");              // delete temporary file
+            fclose(fp3);
         }
         else {
-            IOT_ERROR("[rpi] Cannot remove current %s",fname);
+            IOT_ERROR("[rpi] Cannot copy new %s",fname);
             return(0);
         }
+        //}
+        //else {
+        //    IOT_ERROR("[rpi] Cannot remove current %s",fname);
+        //    return(0);
+        //}
     }
     else {
         IOT_ERROR("[rpi] Cannot copy current %s to %s",fname,PRIORCONF);
@@ -1544,7 +1549,8 @@ int _switchSSID(char *dev, char *ssid) {
                 if (!pf) {
                     IOT_ERROR("[rpi] Cannot connect to %s",ssid);
                     return(0);
-                }
+                } else
+                    pclose(pf);
             }
         }
 
@@ -1567,7 +1573,7 @@ uint16_t iot_bsp_wifi_get_scan_result(iot_wifi_scan_result_t * scan_result)
 {
     int index;
 
-    IOT_INFO("[rpi] Get scan result requested");
+
 
     for(index = 0;index < scanstore.apcount;index++) {
 
@@ -1586,6 +1592,8 @@ uint16_t iot_bsp_wifi_get_scan_result(iot_wifi_scan_result_t * scan_result)
         scan_result[index].authmode = scanstore.apdata[index].authmode;
 
     }
+
+    IOT_INFO("[rpi] Get scan result requested; %d available", scanstore.apcount);
 
     return(scanstore.apcount);
 }

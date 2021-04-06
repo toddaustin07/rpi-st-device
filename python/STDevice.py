@@ -1,3 +1,26 @@
+#################################################################################
+# Python API Wrapper Class for SmartThings Direct-connected Device Applications
+#          
+#                           Version 0.202103
+#
+# Copyright 2021 Todd A. Austin
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.                        
+#
+# Constants are replicated from Samsung SmartThings Direct-connect core SDK
+# application header definitions; source: /st-device-sdk-c/src/include/st_dev.h
+#################################################################################
+
 from STDK_API import ffi, lib
 
 ###################################################################################

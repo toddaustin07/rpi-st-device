@@ -2,7 +2,7 @@
 #################################################################################
 # Enabling Raspberry Pi to run SmartThings direct-connected device applications
 #                  SoftAP install and configure bash script
-#                           Version 0.20201217
+#                           Version 0.20210327
 #
 # Copyright 2020 Todd A. Austin
 #
@@ -46,7 +46,7 @@ def_ch="1"
 def_cc="US"
 
 currdir="./"
-modellist=("a02082" "a22082" "a32082" "a020d3" "a03111" "b03111" "c03111" "b03112" "c03111" "c03112")
+modellist=("a02082" "a22082" "a32082" "a020d3" "a03111" "b03111" "c03111" "b03112" "c03111" "c03112" "9000c1")
 ipcount=0
 declare -a dhcp_array_dev
 declare -a dhcp_array_ip
@@ -292,11 +292,11 @@ fi
 #
 echo -e "\e[97mInstalling/updating hostapd...\e[0m"
 echo
-apt install hostapd
+apt install hostapd -y
 echo
 echo -e "\e[97mInstalling/updating dnsmasq...\e[0m"
 echo
-apt install dnsmasq
+apt install dnsmasq -y
 echo
 echo -e "\e[97mSoftware updates \e[92mCOMPLETE\e[0m"
 echo

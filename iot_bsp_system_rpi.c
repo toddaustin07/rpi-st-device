@@ -23,7 +23,6 @@
 #include "iot_bsp_system.h"
 #include "iot_debug.h"
 #include <errno.h>
-extern int errno;
 
 const char* iot_bsp_get_bsp_name()
 {

@@ -22,7 +22,7 @@ OUTPUT_DIR = $(TOPDIR)/output
 CBOR_DIR = src/deps/cbor/tinycbor/src
 
 
-CFLAGS	:= -std=c99 -D_GNU_SOURCE -g
+CFLAGS	:= -std=c99 -D_GNU_SOURCE
 CFLAGS	+= $(STDK_CFLAGS)
 
 

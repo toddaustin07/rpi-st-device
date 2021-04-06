@@ -3,7 +3,7 @@
 #################################################################################
 # Enabling Raspberry Pi to run SmartThings direct-connected device applications
 #                Master setup and configure bash script
-#                           Version 0.20201217
+#                           Version 0.20210327
 #
 # Copyright 2020 Todd A. Austin
 #
@@ -35,7 +35,7 @@ onbjsonfile="$sdkpkgdir/example/onboarding_config.json"
 todo="[to-do]"
 done="[done]"
 
-modellist=("a02082" "a22082" "a32082" "a020d3" "a03111" "b03111" "c03111" "b03112" "c03111" "c03112")
+modellist=("a02082" "a22082" "a32082" "a020d3" "a03111" "b03111" "c03111" "b03112" "c03111" "c03112" "9000c1")
 
 initstepst=("$todo" "$todo" "$todo" "$todo" "$todo" "$todo" "$todo" "$todo")
 stepst=()
@@ -624,6 +624,28 @@ echo -e "\n\t\e[4mCHECKING YOUR SYSTEM:\e[0m"
 verifysys
 if [ $? -ne 0 ]; then
   exit 1;
+fi
+
+# Check that git is installed; if not, install it
+
+output=$(apt-cache policy git 2>&1)
+
+if [[ "$output" =~ "Installed: (none)" ]]; then
+
+  echo -e "\n\t\e[97mInstalling git\n\e[0m"
+  sudo apt-get install git -y
+
+fi
+
+# Check that pip3 is installed; if not, install it
+
+output=$(apt-cache policy python3-pip 2>&1)
+
+if [[ "$output" =~ "Installed: (none)" ]]; then
+
+  echo -e "\n\t\e[97mInstalling pip3\n\e[0m"
+  sudo apt-get install python3-pip -y
+
 fi
 
 #####################################

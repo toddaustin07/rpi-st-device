@@ -1,8 +1,10 @@
 #!/bin/bash
 
-sudo apt-get install gcc make git wget python3-serial python3-cryptography
-sudo apt-get install cmake gperf ninja-build ccache libncurses-dev flex bison libffi-dev libssl-dev python3-future python3-pyparsing python3-pyelftools
-sudo apt-get install libpthread-stubs0-dev
+sudo apt-get update
+sudo apt-get upgrade
+sudo apt-get install gcc make git wget python3-serial python3-cryptography -y
+sudo apt-get install cmake gperf ninja-build ccache libncurses-dev flex bison libffi-dev libssl-dev python3-future python3-pyparsing python3-pyelftools -y
+sudo apt-get install libpthread-stubs0-dev -y
+sudo apt-get install libopenjp2-7 python3-pil -y
 pip3 install --user pynacl
 pip3 install --user qrcode
-pip3 install --user pillow
