@@ -448,7 +448,7 @@ step5() {
   echo -e "\tBegin with section \e[1m2.1\e[22m 'Create a new project' - continuing to and including"
   echo -e "\tsection \e[1m2.5\e[22m 'Deploy Your Device to Test'"
   
-  echo -en "\n\t\e[95mPress any key once you have completed those steps\e[0m"
+  echo -en "\n\t\e[95mPress any key once you have completed those steps\e[0m "
   read -rsn1 keyin
   echo
   
@@ -512,7 +512,7 @@ step5() {
   echo -e "\n\t\e[0mNow finish device profile & registration in Samsung SmartThings Developer Workspace"
   echo -e "\t\e[0m>> Download \e[97monboarding_config.json\e[0m to \e[97m~/st-device-sdk-c/example\e[0m directory<<"
         
-  echo -en "\n\t\e[95mPress any key once you have downloaded \e[97monboarding_config.json"
+  echo -en "\n\t\e[95mPress any key once you have downloaded \e[97monboarding_config.json \e[0m"
   read -rsn1 keyin
   echo
         
@@ -523,7 +523,7 @@ step5() {
           
     if [[ $errnum -eq 0 && "$jsonvalue" != "NAME" ]]; then
 
-      echo -e "\t\e[92m$onbjsonfile verified\e[0m"
+      echo -e "\t\e[0m$onbjsonfile \e[92m...VERIFIED\e[0m"
       stepst[4]=$done
                 
     else
@@ -598,8 +598,8 @@ step7() {
 step8() {
   
   echo -e "\n\t\e[97mPrepare to onboard your device!\e[0m"
-  echo -e "\n\tOpen the SmartThings mobile app and begin the \e[97mAdd Device\e[0m process"
-  echo -en "\n\t\e[95mPress any key once you have tapped \e[97mScan QR code\e[0m"
+  echo -e "\n\tOpen the SmartThings mobile app and begin the '\e[97mAdd Device\e[0m' process"
+  echo -en "\n\t\e[95mPress any key once you have tapped '\e[97mScan QR code\e[0m' "
   read -rsn1 keyin
   echo 
   
