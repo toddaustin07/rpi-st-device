@@ -22,6 +22,7 @@
 #################################################################################
 
 # Global static variables
+VERSION=".20210406"
 rpimodel=""
 osrelease=0
 startdir=""
@@ -653,6 +654,7 @@ fi
 
 echo -e "\n\t\e[97mInstall and configure Raspberry Pi support for"
 echo -e "\tSamsung SmartThings direct-connected device applications\e[0m"
+echo -e "\tVersion $VERSION"
 
 echo -e "\n\t\e[4mCHECKING YOUR SYSTEM:\e[0m"
 
