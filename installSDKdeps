@@ -1,7 +1,7 @@
 #!/bin/bash
 
-sudo apt-get update
-sudo apt-get upgrade
+sudo apt-get update -y
+sudo apt-get upgrade -y
 sudo apt-get install gcc make git wget python3-serial python3-cryptography -y
 sudo apt-get install cmake gperf ninja-build ccache libncurses-dev flex bison libffi-dev libssl-dev python3-future python3-pyparsing python3-pyelftools -y
 sudo apt-get install libpthread-stubs0-dev -y
