@@ -721,7 +721,7 @@ while [ "$menuselect" != "q" ]
       ix=$((menuselect-1))
       if [ ${stepst[ix]} == $done ]
         then
-          echo -en "\n\t\e[93mAre you sure you want to repeat this step? (\e[1my/n\e[22m):\e[0m "
+          echo -en "\n\t\e[93mAre you sure you want to repeat this step? (y/n):\e[0m "
           getyesno
           echo
           if [ "$keyresp" == "n" ]
