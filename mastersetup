@@ -664,12 +664,18 @@ if [ $? -ne 0 ]; then
   exit 1;
 fi
 
+aptgetflag=0
+
 # Check that git is installed; if not, install it
 
 output=$(apt-cache policy git 2>&1)
 
 if [[ "$output" =~ "Installed: (none)" ]]; then
 
+  echo -e "\n\t\e[97mRunning apt-get update\n\e[0m"
+  sudo apt-get update -y
+  aptgetflag=1
+  
   echo -e "\n\t\e[97mInstalling git\n\e[0m"
   sudo apt-get install git -y
 
@@ -681,8 +687,10 @@ output=$(apt-cache policy python3-pip 2>&1)
 
 if [[ "$output" =~ "Installed: (none)" ]]; then
 
-  echo -e "\n\t\e[97mRunning apt-get update\n\e[0m"
-  sudo apt-get update -y
+  if [ $aptgetflag -eq 0 ]; then
+    echo -e "\n\t\e[97mRunning apt-get update\n\e[0m"
+    sudo apt-get update -y
+  fi
 
   echo -e "\n\t\e[97mInstalling pip3\n\e[0m"
   sudo apt-get install python3-pip -y
