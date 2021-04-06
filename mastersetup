@@ -76,7 +76,7 @@ showmenu() {
  echo -e "\t 3. Clone Core SDK \t\t\t\t${dispstepst[2]}"
  echo -e "\t 4. Build Core SDK \t\t\t\t${dispstepst[3]}"
  echo -e "\t 5. Register devices in Developer Workspace \t${dispstepst[4]}"
- echo -e "\t 6. Build Example App \t\t\t\t${dispstepst[5]}"
+ echo -e "\t 6. Build example device app \t\t\t\t${dispstepst[5]}"
  echo -e "\t 7. Configure Pi for SoftAP \t\t\t${dispstepst[6]}"
  echo -e "\t 8. On-board example device app\t\t\t${dispstepst[7]}"
  echo -e "\t======================================================="
