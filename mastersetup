@@ -187,8 +187,8 @@ clonepkg() {
         stepst[step]=$done
         
         if [ $step -eq 0 ]; then
-          cd $PKGDIR
-          echo -e "\n\n\e[96mPLEASE RESTART mastersetup NOW (./mastersetup)\e[0m\n"
+        
+          echo -e "\n\n\e[96mPLEASE RESTART mastersetup NOW (cd ~/rpi-st-device && ./mastersetup)\e[0m\n"
           updatestatfile
           exit 0
         fi
@@ -225,6 +225,7 @@ clonepkg() {
               
                 if [[ "$output" =~ "mastersetup" ]]; then
                   echo -e "\n\n\e[96mPLEASE RESTART mastersetup NOW (./mastersetup)\e[0m\n"
+                  updatestatfile
                   exit 0
                 fi
               fi
