@@ -681,6 +681,18 @@ output=$(apt-cache policy python3-pip 2>&1)
 
 if [[ "$output" =~ "Installed: (none)" ]]; then
 
+  echo -e "\n\t\e[97mRunning apt-get update\n\e[0m"
+  sudo apt-get update -y
+
+  echo -e "\n\t\e[97mInstalling pip3\n\e[0m"
+  sudo apt-get install python3-pip -y
+
+fi
+
+output=$(apt-cache policy python3-pip 2>&1)
+
+if [[ "$output" =~ "Installed: (none)" ]]; then
+
   echo -e "\n\t\e[97mInstalling pip3\n\e[0m"
   sudo apt-get install python3-pip -y
 
