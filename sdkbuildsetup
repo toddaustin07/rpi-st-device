@@ -14,9 +14,9 @@ rm -f build/stdk_iot_bsp_wifi_posix.o
 ###########################################################################
 ### core SDK patches - remove when released ###
 # (1) timer memory leak & (2) eventgroup mutex
-cp ~/rpi-st-device/iot_os_util_posix.c src/port/os/posix/iot_os_util_posix.c
+#cp ~/rpi-st-device/iot_os_util_posix.c src/port/os/posix/iot_os_util_posix.c
 # (3) MBEDTLS link module list update
-cp ~/rpi-st-device/mbedtls_Makefile src/deps/mbedtls/Makefile
+#cp ~/rpi-st-device/mbedtls_Makefile src/deps/mbedtls/Makefile
 ############################################################################
 #
 # Set-clock bypass
@@ -25,8 +25,6 @@ if [ ! -f "src/port/bsp/posix/iot_bsp_system_posix.ORIGc" ]; then
 fi
 cp ~/rpi-st-device/iot_bsp_system_rpi.c src/port/bsp/posix/iot_bsp_system_rpi.c
 #
-if [ ! -f "MakefileORIG" ]; then mv Makefile MakefileORIG; fi
-cp ~/rpi-st-device/RPIMakefile Makefile
 if [ ! -f "stdconfigORIG" ]; then mv stdkconfig stdkconfigORIG; fi
 cp ~/rpi-st-device/RPIstdkconfig stdkconfig
 #
