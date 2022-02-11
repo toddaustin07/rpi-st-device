@@ -12,6 +12,7 @@ The SmartThings platform is evolving. In the not-too-distant future there will b
 
 SmartThings's concept for "direct-connected" devices are wifi-enabled microcontroller-based IOT devices.  In fact the SDK that was developed in support of this very much revolves around MCUs like the popular ESP32 system-on-a-chip microcontroller with integrated wifi.  However with modifications, the SDK can be implemented on a Raspberry Pi as well.  The only downside to this approach is the way devices must be individually provisioned.  However, what direct connected devices enables is an environment where you can write and run applications totally under your control, with full integration with SmartThings.  No cloud server to manage, no IDE, no Groovy code - just a simple API to send and receive commands and attributes for whatever kind of IOT device application you can dream up and implement on a Raspberry Pi using either C or Python.
 
+**UPDATE:** There is now a fourth method to integrate with SmartThings: via their new Edge platform (still in beta as of Feb 2022).  This provides the option of writing device drivers that run locally on the SmartThings hub.  Interfacing these drivers with Pi-based applications can allow for total local execution, but requires some method of LAN discovery, command, and notification protocol to be implemented on both ends (driver and Pi app).
 
 Pre-requisites
 --------------
