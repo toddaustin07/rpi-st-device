@@ -32,7 +32,7 @@ Pre-requisites
 - Raspberry Pi O/S (Version 10 Buster preferred, but as far back as Jessie can also work) Full or Lite
         - Python 3.5 or later (required for SDK tools: keygen and qrgen)
 	- additional packages:  pynacl, qrcode, pillow (via pip installer)
-	- limited testing has been done on 64-bit Raspberry Pi OS (which is currently in beta)
+	- only limited testing has been done on 64-bit Raspberry Pi OS; the Python wrapper works only on 32-bit OS
   
 - RPI SmartThings device enabling package (this repository)
 
