@@ -55,7 +55,3 @@ Two Ways to Proceed
 
 For either option, start here ==> http://toddaustin07.github.io
 
-Work in progress
-----------------
-- Beta closing; Release 1 imminent
-  
