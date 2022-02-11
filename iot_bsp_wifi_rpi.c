@@ -1782,10 +1782,23 @@ iot_error_t iot_bsp_wifi_get_mac(struct iot_mac *wifi_mac)  {
     Output:     IOT_WIFI_FREQ_2_4G_ONLY (only valid value at this time; 5 GHz not supported)
 
 *******************************************************************************************/
-iot_wifi_freq_t iot_bsp_wifi_get_freq(void)  {
-
+iot_wifi_freq_t iot_bsp_wifi_get_freq(void)
+{
     return IOT_WIFI_FREQ_2_4G_ONLY;
 }
+
+
+/* New Callback functions */
+iot_error_t iot_bsp_wifi_register_event_cb(iot_bsp_wifi_event_cb_t cb)
+{
+    return IOT_ERROR_NONE;
+}
+
+void iot_bsp_wifi_clear_event_cb(void)
+{
+}
+
+/************************************************/
 
 void _parsemac(char *textptr, uint8_t *hexbuf) {
 

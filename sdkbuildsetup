@@ -2,7 +2,7 @@
 curdir=$(pwd)
 #
 cd ~/st-device-sdk-c
-if [ ! -f "src/port/bsp/posix/iot_bsp_wifi_posix.ORIGc" ]; then
+if [ -f "src/port/bsp/posix/iot_bsp_wifi_posix.c" ]; then
   mv src/port/bsp/posix/iot_bsp_wifi_posix.c src/port/bsp/posix/iot_bsp_wifi_posix.ORIGc
 fi
 #
@@ -20,10 +20,11 @@ rm -f build/stdk_iot_bsp_wifi_posix.o
 ############################################################################
 #
 # Set-clock bypass
-if [ ! -f "src/port/bsp/posix/iot_bsp_system_posix.ORIGc" ]; then
+if [ -f "src/port/bsp/posix/iot_bsp_system_posix.c" ]; then
   mv src/port/bsp/posix/iot_bsp_system_posix.c src/port/bsp/posix/iot_bsp_system_posix.ORIGc
 fi
 cp ~/rpi-st-device/iot_bsp_system_rpi.c src/port/bsp/posix/iot_bsp_system_rpi.c
+rm -f build/stdk_iot_bsp_system_posix.o
 #
 if [ ! -f "stdconfigORIG" ]; then mv stdkconfig stdkconfigORIG; fi
 cp ~/rpi-st-device/RPIstdkconfig stdkconfig
