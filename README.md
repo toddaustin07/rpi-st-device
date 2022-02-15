@@ -2,6 +2,8 @@
 
 This repository holds everything needed to set up a Raspberry Pi to act as a SmartThings direct connected device.
 
+02/14/22 UPDATE:  Fix was implemented to solve hostapd service detection issue on Bullseye OS (problem was seen during device provisioning process)
+
 What is a direct connected device?
 ----------------------------------
 The SmartThings platform is evolving. In the not-too-distant future there will be three methods for IOT devices to integrate with SmartThings: 1) zwave and zigbee devices that talk directly to the SmartThings hub, 2) cloud-connected devices, and 3) direct-connected devices.  Former devices that were developed in the SmartThings IDE using device type handlers with Groovy code will need to be migrated to one of the those three new options.
