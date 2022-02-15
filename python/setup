@@ -1,11 +1,11 @@
 echo -e "\n\033[97mGetting Python API wrapper files\033[0m"
 
-if [ -f "~/st-device-sdk-c/output/libiotcore.a" ]; then
+if [ -f ~/st-device-sdk-c/output/libiotcore.a ]; then
 	cp ~/st-device-sdk-c/output/libiotcore.a libiotcore.a
 	echo -e "\tUsing libiotcore.a you built in ~/st-device-sdk-c/output"
 else
 	cp ~/rpi-st-device/python/libiotcore.a libiotcore.a
-	echo -e "\tUsing libiotcore.a from ~/rpi-st-device/python"
+	echo -e "\tWARNING: Using Buster libiotcore.a from ~/rpi-st-device/python"
 fi
 
 cp ~/rpi-st-device/python/requirements.txt requirements.txt
