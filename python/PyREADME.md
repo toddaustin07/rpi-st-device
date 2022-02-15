@@ -8,6 +8,7 @@ First, proceed with the complete setup for this RPI setup package (mastersetup) 
 Before you proceed with Python setup, you can exit the C example device app if it is running, **but don't delete the test device from SmartThings mobile app**.
 
 ## Step 1: Create a python project directory and virtual environment (VE is recommended, but not mandatory), and activate the VE
+- *Warning*: this has not been verified on Bullseye OS; *sudo apt-get install python3-venv* may be required
 ```
   mkdir ~/<myproj>
   cd ~/<myproj>
@@ -16,13 +17,20 @@ Before you proceed with Python setup, you can exit the C example device app if i
 ```
 ## Step 2: Run the setup script from your project directory
 This will get all needed files, including installing python modules into your virtual environment, and create a new python shared library: STDK_API.cpython-37m-arm-linux-gnueabihf.so
+
+- *Warning*: this setup uses a pre-built core SDK library module for **Buster OS**.  If using Bullseye, replace it with your build object module:
+```
+cp ~/home/pi/st-device-sdk-c/output/libiotcore.a ~/home/pi/rpi-st-device/python/libiotcore.a
+```
+
+To proceed:
 ```
 ~/rpi-st-device/python/setup
 ```
 
 ## Step 3: Run the example python app
 ```
-python pyexample.py
+python3 pyexample.py
 ```
 
 
