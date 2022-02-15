@@ -20,6 +20,7 @@ This will get all needed files, including installing python modules into your vi
 
 To proceed:
 ```
+cd ~/<myproj>
 ~/rpi-st-device/python/setup
 ```
 
