@@ -1006,9 +1006,10 @@ iot_error_t iot_bsp_wifi_set_mode(iot_wifi_conf *conf)
             }
 
         usleep(SOFTAPWAITTIME);                                 //pause to let hostapd & dnsmasq to come up
-
+        
         // Confirm hostapd has started
         if (!_checkstartSoftAP("hostapd")) {
+            usleep(SOFTAPWAITTIME);
             usleep(SOFTAPWAITTIME);
             if (!_checkstartSoftAP("hostapd")) {
                 IOT_ERROR("[rpi] SoftAP service failed to start");
@@ -1152,7 +1153,6 @@ bool _checkstartSoftAP(char *service) {
     char data[maxdatasize];
     bool fflag = false;
     int linecounter = 0;
-    int foundstartedline = 0;
 
     strcpy(command,SERVSTATCMD);
     strcat(command,service);
@@ -1162,23 +1162,14 @@ bool _checkstartSoftAP(char *service) {
 
         while (fgets(data,maxdatasize,pf)) {
             linecounter++;
-            lineptr = strstr(data,"AP-ENABLED");
-
+            lineptr = strstr(data,"Active: active (running)");
             if (lineptr) {
-
-                while (fgets(data,maxdatasize,pf)) {
-                    linecounter++;
-                    lineptr = strstr(data,"Started Advanced IEEE 802.11 AP");
-
-                    if (lineptr) {
-                        fflag=true;
-                        foundstartedline=linecounter;
-                    }
-                }
+                fflag=true;
+                break;
             }
         }
         pclose(pf);
-        if (fflag && (foundstartedline == linecounter))
+        if (fflag)
             return true;
 
     } else {
