@@ -11,7 +11,7 @@ fi
 
 if [ -f "/etc/hostapd/hostapd.conf" ]
  then
-  sudo cp /etc/hostapd/hostapd.conf /etc/hostapd/hostapd.SAVEconf"
+  sudo cp /etc/hostapd/hostapd.conf /etc/hostapd/hostapd.SAVEconf
 fi
 
 cp $currdir/RPIdnsmasq.conf /etc/dnsmasq.conf
