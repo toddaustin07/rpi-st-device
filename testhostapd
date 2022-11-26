@@ -6,7 +6,9 @@ dhcpcdap="/etc/dhcpcd_ap.conf"
 echo -e "\n\e[97mTHIS SCRIPT WILL MANUALLY START HOSTAPD FOR TESTING\e[0m"
 echo -e "\t- Requires pre-configured /etc/dhcpcd_ap.conf file"
 echo
-echo -en "Press any key to proceed or Ctrl-c to quit... "
+echo -e "\e[91mWARNING: If you proceed, your wireless connection will be interrupted!  Proceed only if this a direct terminal or ethernet SSH connection"
+echo
+echo -en "\e[0mPress any key to proceed or Ctrl-c to quit... "
 read -rsn1 keyin
 echo
 echo -e "\n\e[93mSwitching to wireless Access Point mode"

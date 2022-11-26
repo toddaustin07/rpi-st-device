@@ -783,7 +783,10 @@ if [ "$keyin" == "y" ]
 
   # WRAP UP WITH OPTIONAL HOSTAPD TEST
 
-  echo -en "\e[95m>> Would you like to manually start hostapd now for testing? (y/n) "
+
+  echo -e "\e[97mWould you like to manually start hostapd now for testing?"
+  echo -e "\e[91m   WARNING:  the wireless connection will be interrupted; proceed only if this is a direct terminal or ethernet connection\e[0m"
+  echo -en "\n\e[95m>> Proceed? (y/n) "
 
   keyin=""
   while [[ "$keyin" != "y" && "$keyin" != "n" ]]
