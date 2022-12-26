@@ -2,9 +2,9 @@
 #################################################################################
 # Enabling Raspberry Pi to run SmartThings direct-connected device applications
 #                  SoftAP install and configure bash script
-#                           Version 0.20210327
+#                           Version 0.20221225
 #
-# Copyright 2020 Todd A. Austin
+# Copyright 2020, 2021, 2022 Todd A. Austin
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -736,7 +736,7 @@ if [ "$keyin" == "y" ]
       fi
       
      else
-      echo -e "\n\n\t\e[93m** Missing contents in dhcpcd.conf; please edit manually **"
+      echo -e "\n\n\t\e[93m** Unexpected contents in dhcpcd.conf; please edit manually **"
       echo -e "\n\t\e[33mPress any key to start editor\e[39m"
       read -rsn1 keyin
       nano "$dhcpcdap"
