@@ -107,9 +107,9 @@ class STDevice(object):
         else:
             return True
 
-    def init_capability(self, capname, initcallback):
+    def init_capability(self, capname, initcallback, compname="main"):
 
-        handle = lib.st_cap_handle_init(self.ctx, b"main", capname.encode('utf-8'), initcallback, ffi.NULL)
+        handle = lib.st_cap_handle_init(self.ctx, compname.encode('utf-8'), capname.encode('utf-8'), initcallback, ffi.NULL)
 
         return(handle)
 
@@ -134,10 +134,21 @@ class STDevice(object):
     def setstrattr(cls, handle, attrname, attrvalue):
 
         value = ffi.new("iot_cap_val_t *")
-        value.type = IOT_CAP_VAL_TYPE_STRING
+        value.type = cls.get_val_type(attrvalue)
 
-        fstring = ffi.new("char [5]", attrvalue.encode('utf-8'))
-        value.string = fstring
+        if value.type == IOT_CAP_VAL_TYPE_INTEGER:
+            value.integer = attrvalue
+        if value.type == IOT_CAP_VAL_TYPE_NUMBER:
+            value.number = attrvalue
+        elif value.type == IOT_CAP_VAL_TYPE_STR_ARRAY:            
+            strings = ffi.new(f"char *[{len(attrvalue)}]", [ffi.new(f"char [{len(v) + 8}]", v.encode('utf-8')) for v in attrvalue])
+            value.str_num = len(attrvalue)
+            value.strings = strings
+
+        elif value.type == IOT_CAP_VAL_TYPE_STRING:
+            leng = len(attrvalue) + 8
+            fstring = ffi.new(f"char [{leng}]", attrvalue.encode('utf-8'))
+            value.string = fstring
 
         attr = ffi.new("IOT_EVENT *")
         attr = lib.st_cap_create_attr(handle, attrname.encode('utf-8'), value, ffi.NULL, ffi.NULL)
@@ -149,3 +160,29 @@ class STDevice(object):
             return(seq)
         else:
             return(-1)
+
+    def get_val_type(iotvalue):
+        switcher = {
+            int: IOT_CAP_VAL_TYPE_INTEGER,
+            float: IOT_CAP_VAL_TYPE_NUMBER,
+            str: IOT_CAP_VAL_TYPE_STRING,
+            bool: IOT_CAP_VAL_TYPE_BOOLEAN,
+            list: IOT_CAP_VAL_TYPE_STR_ARRAY
+        }
+
+        return switcher.get(type(iotvalue), IOT_CAP_VAL_TYPE_UNKNOWN)
+
+    def convert_to_python(s):
+        type=ffi.typeof(s)
+        if type.kind == 'struct':
+            return dict(__convert_struct_field( s, type.fields ) )
+        elif type.kind == 'array':
+            if type.item.kind == 'primitive':
+                if type.item.cname == 'char':
+                    return ffi.string(s)
+                else:
+                    return [ s[i] for i in range(type.length) ]
+            else:
+                return [ convert_to_python(s[i]) for i in range(type.length) ]
+        elif type.kind == 'primitive':
+            return int(s)
