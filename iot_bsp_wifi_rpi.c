@@ -1656,8 +1656,8 @@ int _perform_scan()  {
                         lineptr = strstr(data,"\tSSID:");
                         if (lineptr) {
                                                                                     // Found SSID
-                            i=0;
-                            while ((i < IOT_WIFI_MAX_SSID_LEN) && (*(lineptr+i+7) != ' ') && (*(lineptr+i+7) != '\n')) {
+                            i=0;                   // ****VVV 010722 Removed test for space char (for SSIDs with embedded spaces)
+                            while ((i < IOT_WIFI_MAX_SSID_LEN) && (*(lineptr+i+7) != '\n')) {
                                 tmpbuf[i] = *(lineptr + i + 7);
                                 i++;
                             }
