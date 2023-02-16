@@ -6,6 +6,8 @@ This repository holds everything needed to set up a Raspberry Pi to act as a Sma
 
 09/16/22 UPDATE:  The new Raspberry Pi OS provides a new option to use Network Manager instead of dhcpcd.  You must stay with dhcpcd.
 
+**02/15/23 NOTICE:  A new release of the SmartThings core SDK for Direct Connected Devices (v.1.8.0) is now available.  My package has not yet been tested with this new release, so please report any issues.  I will update this notice as soon as I get a chance to complete regression tests with the new release.**
+
 What is a direct connected device?
 ----------------------------------
 The SmartThings platform is evolving. In 2023 there will be three methods for IOT devices to integrate with SmartThings: 1) devices that talk directly to the SmartThings hub (Edge), 2) cloud-connected devices, and 3) direct-connected devices.  Former devices that were developed in the SmartThings IDE using device type handlers with Groovy code will need to be migrated to one of the those three new options.
