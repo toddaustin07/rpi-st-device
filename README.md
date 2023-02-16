@@ -40,7 +40,7 @@ Pre-requisites
   
 - RPI SmartThings device enabling package (this repository)
 
-- SmartThings core SDK (will be installed by the setup script, including additional dependencies)
+- SmartThings core SDK (will be installed by the setup script, including additional dependencies); this package tested with v.1.7.0
 	
   
 Useful reading
