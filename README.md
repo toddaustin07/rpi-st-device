@@ -6,7 +6,7 @@ This repository holds everything needed to set up a Raspberry Pi to act as a Sma
 
 09/16/22 UPDATE:  The new Raspberry Pi OS provides a new option to use Network Manager instead of dhcpcd.  You must stay with dhcpcd.
 
-**02/15/23 NOTICE:  A new release of the SmartThings core SDK for Direct Connected Devices (v.1.8.0) is now available.  It appears that this release now supports a Raspberry Pi configuration natively, so my package here may no longer be required.  I have not tested it myself, but refer to the "raspberry" subdirectory within the SDK example directory.
+**02/15/23 NOTICE:  A new release of the SmartThings core SDK for Direct Connected Devices (v.1.8.0) is now available.  It appears that this release now supports a Raspberry Pi configuration natively, so my package here may no longer be required.  I have not tested it myself, but refer to the "raspberry" subdirectory within the SDK example directory.**
 
 What is a direct connected device?
 ----------------------------------
